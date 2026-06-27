@@ -1,0 +1,8 @@
+ansible_ssh_private_key_file: ~/.ssh/yc_vm_ed25519
+
+host_notes:
+  os: Ubuntu 24.04.4 LTS
+  vm_name: ubuntu-2404-min
+  public_ip: 111.88.242.229
+  ssh_user: deploy
+  ssh_key: ~/.ssh/yc_vm_ed25519

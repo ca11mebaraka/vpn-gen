@@ -1,0 +1,30 @@
+---
+- name: Verify prepared hosts
+  hosts: all
+  gather_facts: true
+
+  tasks:
+    - name: Check SSH login user
+      ansible.builtin.command: whoami
+      become: false
+      changed_when: false
+      register: whoami_result
+
+    - name: Check passwordless sudo
+      ansible.builtin.command: sudo -n true
+      become: false
+      changed_when: false
+
+    - name: Check deploy user exists
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ deploy_user }}"
+
+    - name: Show prepared host summary
+      ansible.builtin.debug:
+        msg:
+          host: "{{ inventory_hostname }}"
+          ansible_host: "{{ ansible_host }}"
+          connected_as: "{{ whoami_result.stdout }}"
+          distribution: "{{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+          sudo_nopasswd: "{{ deploy_sudo_nopasswd }}"
