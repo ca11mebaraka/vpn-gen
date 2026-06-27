@@ -110,8 +110,8 @@ secret_dir=${VPN_GEN_WG_SECRET_DIR:-"$HOME/.config/vpn-gen/wireguard"}
 public_vars_file=${VPN_GEN_WG_PUBLIC_VARS_FILE:-"$secret_dir/public-vars.yml"}
 initial_client_config_path=${VPN_GEN_WG_CLIENT_CONFIG_PATH:-"$secret_dir/initial-client.conf"}
 
-client_endpoint_host=${VPN_GEN_WG_CLIENT_ENDPOINT_HOST:-"111.88.242.229"}
-client_endpoint_port=${VPN_GEN_WG_CLIENT_ENDPOINT_PORT:-"51820"}
+client_endpoint_host=${VPN_GEN_WG_CLIENT_ENDPOINT_HOST:-"51.250.14.221"}
+client_endpoint_port=${VPN_GEN_WG_CLIENT_ENDPOINT_PORT:-"53774"}
 transit_endpoint_port=${VPN_GEN_WG_TRANSIT_ENDPOINT_PORT:-"51821"}
 
 key_ids=(

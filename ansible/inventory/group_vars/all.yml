@@ -2,6 +2,6 @@ ansible_user: deploy
 ansible_become_method: sudo
 ansible_become_user: root
 
-# The deploy user was already provisioned manually on both hosts.
+# The deploy user was already provisioned manually where used.
 deploy_user: deploy
 deploy_sudo_nopasswd: true

@@ -6,6 +6,8 @@ This document covers the validation and rollback scaffolding for the cascade VPN
 - Yandex Cloud sends non-RU marked traffic through `wg-transit`.
 - Racknerd exits non-RU client traffic to the Internet.
 - RU traffic exits directly from Yandex Cloud.
+- The secondary Yandex direct edge accepts clients on `wg0` and sends all client
+  traffic through Racknerd `wg-direct-exit`.
 
 ## Static Checks
 
@@ -24,8 +26,9 @@ ansible-playbook -i inventory/hosts.yml playbooks/rollback_cascade.yml --syntax-
 - SSH baseline connectivity and passwordless sudo.
 - IPv4 forwarding on all cascade hosts.
 - Expected WireGuard interfaces:
-  - Yandex: `wg-client`, `wg-transit`.
-  - Racknerd: `wg-transit`.
+  - Primary Yandex: `wg-client`, `wg-transit`.
+  - Secondary Yandex: `wg0`, `wg-transit`.
+  - Racknerd: `wg-transit`, `wg-direct-exit`.
 - `wg show interfaces`, per-interface `wg show`, and `systemctl is-active` for expected WireGuard services.
 - Loaded nftables ruleset presence.
 - Yandex policy routing:
@@ -41,6 +44,9 @@ ansible-playbook -i inventory/hosts.yml playbooks/rollback_cascade.yml --syntax-
 - Racknerd NAT assumptions:
   - route to `10.60.0.10` through `wg-transit`.
   - nftables references to `wg-transit`, `10.60.0.0/24`, masquerade, and counters.
+- Racknerd direct-exit assumptions:
+  - route to `10.80.0.10` through `wg-direct-exit`.
+  - nftables references to `wg-direct-exit`, `10.80.0.0/24`, masquerade, and counters.
 
 Run live validation after the deployment playbooks have completed:
 
@@ -56,7 +62,7 @@ Recommended live run order:
 3. Run `playbooks/validate_cascade.yml`.
 4. Connect a test WireGuard client.
 5. Generate RU and non-RU test traffic from the client.
-6. Re-run `playbooks/validate_cascade.yml` and compare nftables counter state on both hosts.
+6. Re-run `playbooks/validate_cascade.yml` and compare nftables counter state on all VPN hosts.
 7. For fail-closed testing, stop only Racknerd transit in a planned maintenance window and confirm non-RU traffic fails while RU traffic still exits through Yandex.
 
 ## Rollback Playbook
@@ -71,6 +77,7 @@ The rollback scaffold can:
 - Remove Yandex `fwmark 0x2 table 200` policy rule.
 - Flush Yandex route cache.
 - Stop and disable `wg-quick@wg-transit` on Racknerd.
+- Stop and disable `wg-quick@wg-direct-exit` on Racknerd if rolling back the secondary Yandex direct path.
 
 Safe dry preflight:
 

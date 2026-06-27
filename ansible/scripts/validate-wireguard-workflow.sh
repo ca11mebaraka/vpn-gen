@@ -19,10 +19,14 @@ run() {
 }
 
 run bash -n "$script_dir/wg-secrets-init.sh"
+run bash -n "$script_dir/wg-client"
 run bash -n "$script_dir/check-no-private-key-material.sh"
+run python3 -m py_compile "$script_dir/wg-client-admin.py"
 
 run "$script_dir/wg-secrets-init.sh" --help
 run "$script_dir/wg-secrets-init.sh" --dry-run
+run "$script_dir/wg-client" --help
+run "$script_dir/wg-client" profiles
 run "$script_dir/check-no-private-key-material.sh" --help
 run "$script_dir/check-no-private-key-material.sh"
 

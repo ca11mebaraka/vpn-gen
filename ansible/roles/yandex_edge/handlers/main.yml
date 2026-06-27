@@ -21,3 +21,10 @@
     name: nftables
     state: reloaded
   listen: Reload nftables
+
+- name: Restart dnsmasq
+  ansible.builtin.service:
+    name: dnsmasq
+    enabled: true
+    state: restarted
+  when: not ansible_check_mode

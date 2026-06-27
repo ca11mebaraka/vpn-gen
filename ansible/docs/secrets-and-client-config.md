@@ -56,8 +56,8 @@ Optional environment overrides:
 VPN_GEN_WG_SECRET_DIR="$HOME/.config/vpn-gen/wireguard"
 VPN_GEN_WG_PUBLIC_VARS_FILE="$HOME/.config/vpn-gen/wireguard/public-vars.yml"
 VPN_GEN_WG_CLIENT_CONFIG_PATH="$HOME/.config/vpn-gen/wireguard/initial-client.conf"
-VPN_GEN_WG_CLIENT_ENDPOINT_HOST="111.88.242.229"
-VPN_GEN_WG_CLIENT_ENDPOINT_PORT="51820"
+VPN_GEN_WG_CLIENT_ENDPOINT_HOST="51.250.14.221"
+VPN_GEN_WG_CLIENT_ENDPOINT_PORT="53774"
 VPN_GEN_WG_TRANSIT_ENDPOINT_PORT="51821"
 ```
 
@@ -133,10 +133,16 @@ Future roles should use these generated variables:
   - `wireguard_initial_client_public_key`
   - `wireguard_initial_client_address`
   - `wireguard_initial_client_dns`
+  - `wireguard_initial_client_mtu`
   - `wireguard_initial_client_config_path`
   - `wireguard_yandex_client_endpoint_host`
   - `wireguard_yandex_client_endpoint_port`
   - `wireguard_client_allowed_ips`
+
+The live primary Yandex client endpoint is `51.250.14.221:53774`. On macOS,
+`wireguard_client_allowed_ips` should exclude `51.250.14.221/32` so the
+endpoint itself remains routed over the physical interface rather than into the
+tunnel.
 
 Roles may read private key files from the local controller when rendering
 WireGuard configs, but must not place private key values into inventory,

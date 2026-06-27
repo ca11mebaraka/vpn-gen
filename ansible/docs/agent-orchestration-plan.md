@@ -47,7 +47,7 @@ Minimum checks by layer:
 Purpose:
 
 - Keep host inventory and host variables accurate.
-- Ensure both hosts are reachable as `deploy`.
+- Ensure all VPN hosts are reachable with their configured SSH users.
 - Ensure passwordless sudo works.
 
 Inputs:
@@ -55,6 +55,7 @@ Inputs:
 - `inventory/hosts.yml`
 - `inventory/group_vars/all.yml`
 - `host_vars/yc_ubuntu_2404_min.yml`
+- `host_vars/yandex_wg_direct.yml`
 - `host_vars/racknerd_ubuntu.yml`
 
 Tasks:
@@ -62,7 +63,7 @@ Tasks:
 - Maintain host metadata.
 - Run `ansible all -m ping`.
 - Run `ansible-playbook playbooks/verify.yml`.
-- Refuse to continue if either host is unreachable.
+- Refuse to continue if any host is unreachable.
 
 Deliverables:
 
@@ -189,7 +190,7 @@ Tasks:
 - Configure `wg-transit` address `10.70.0.1/30`.
 - Set `Table = off` for `wg-transit`.
 - Add Racknerd as transit peer:
-  - Endpoint: `172.245.154.109:<transit_port>`
+- Endpoint: `172.245.154.109:51821`
   - `AllowedIPs = 0.0.0.0/0`
 - Add policy routing:
   - `ip rule add fwmark 0x2 table 200`
@@ -274,7 +275,7 @@ Tasks:
 - Create client config with:
   - Client address `10.60.0.10/32`.
   - DNS `10.60.0.1`.
-  - Endpoint `111.88.242.229:<client_port>`.
+- Endpoint `51.250.14.221:53774`.
   - `AllowedIPs = 0.0.0.0/0`.
 - Add the client public key as peer on Yandex `wg-client`.
 - Reload `wg-client` safely.

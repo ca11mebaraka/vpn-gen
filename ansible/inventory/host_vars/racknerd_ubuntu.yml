@@ -5,3 +5,10 @@ host_notes:
   public_ip: 172.245.154.109
   ssh_user: deploy
   ssh_key: ~/.ssh/vps_172_245_154_109_ed25519
+
+racknerd_exit_wg_transit_private_key_path: "/Users/nmel/.config/vpn-gen/wireguard/racknerd_wg_transit.private.key"
+racknerd_exit_yandex_wg_transit_public_key: "Kd7rT5QGbKN8tkVuYmLEX2VkB7Qcs0+ZWXwgyd5GxkQ="
+
+racknerd_direct_exit_enabled: true
+racknerd_direct_exit_wg_private_key_path: "/Users/nmel/.config/vpn-gen/wireguard-direct-yandex/racknerd_direct_exit.private.key"
+racknerd_direct_exit_yandex_public_key: "PFMIDXQfNBTcvz8rmODwcbsML3q5tg3k2ldGhJ7lkns="

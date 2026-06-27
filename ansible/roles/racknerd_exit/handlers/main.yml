@@ -4,6 +4,16 @@
     name: "wg-quick@{{ racknerd_exit_wg_transit_interface }}"
     enabled: true
     state: restarted
+  when: not ansible_check_mode
+
+- name: Restart Racknerd direct-exit WireGuard
+  ansible.builtin.service:
+    name: "wg-quick@{{ racknerd_direct_exit_wg_interface }}"
+    enabled: true
+    state: restarted
+  when:
+    - racknerd_direct_exit_enabled
+    - not ansible_check_mode
 
 - name: Validate nftables before reload
   ansible.builtin.command: nft -c -f /etc/nftables.conf

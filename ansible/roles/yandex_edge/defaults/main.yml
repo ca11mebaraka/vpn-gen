@@ -1,7 +1,7 @@
 ---
 yandex_edge_wg_client_interface: wg-client
 yandex_edge_wg_client_address: 10.60.0.1/24
-yandex_edge_wg_client_listen_port: 51820
+yandex_edge_wg_client_listen_port: 53774
 
 yandex_edge_wg_transit_interface: wg-transit
 yandex_edge_wg_transit_address: 10.70.0.1/30
@@ -29,9 +29,17 @@ yandex_edge_policy_rule_priority: 200
 yandex_edge_policy_fwmark: "0x2"
 yandex_edge_nftables_fragment: /etc/nftables.d/yandex_edge.nft
 
-# Agent 6 is expected to replace this with a generated RU CIDR include/update
-# mechanism. Keeping it configurable lets Agent 5 pass syntax checks safely.
+yandex_edge_dns_enabled: true
+yandex_edge_dns_interface: "{{ yandex_edge_wg_client_interface }}"
+yandex_edge_dns_listen_address: "10.60.0.1"
+yandex_edge_dns_upstreams:
+  - "10.128.0.2"
+  - "1.1.1.1"
+
+# Provide either a list directly or a controller-local file with one CIDR per
+# line. The live first Yandex node uses a populated ru4 set for split routing.
 yandex_edge_ru_ipv4_cidrs: []
+yandex_edge_ru_ipv4_cidrs_file: ""
 
 yandex_edge_bypass_ipv4_cidrs:
   - 10.0.0.0/8

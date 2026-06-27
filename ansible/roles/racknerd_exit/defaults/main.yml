@@ -16,3 +16,16 @@ racknerd_exit_yandex_allowed_ips:
 racknerd_exit_client_cidr: 10.60.0.0/24
 racknerd_exit_public_interface: eth0
 racknerd_exit_nftables_fragment: /etc/nftables.d/racknerd_exit.nft
+
+racknerd_direct_exit_enabled: true
+racknerd_direct_exit_wg_interface: wg-direct-exit
+racknerd_direct_exit_wg_address: 10.91.0.2/32
+racknerd_direct_exit_wg_listen_port: 51946
+racknerd_direct_exit_wg_private_key: ""
+racknerd_direct_exit_wg_private_key_path: ""
+racknerd_direct_exit_yandex_public_key: ""
+racknerd_direct_exit_yandex_allowed_ips:
+  - 10.91.0.1/32
+  - 10.80.0.0/24
+racknerd_direct_exit_client_cidr: 10.80.0.0/24
+racknerd_direct_exit_nftables_fragment: /etc/nftables.d/racknerd_direct_exit.nft

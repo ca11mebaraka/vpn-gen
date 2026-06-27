@@ -3,6 +3,26 @@ ansible_ssh_private_key_file: ~/.ssh/yc_vm_ed25519
 host_notes:
   os: Ubuntu 24.04.4 LTS
   vm_name: ubuntu-2404-min
-  public_ip: 111.88.242.229
+  public_ip: 51.250.14.221
   ssh_user: deploy
   ssh_key: ~/.ssh/yc_vm_ed25519
+
+yandex_edge_wg_client_private_key_path: "/Users/nmel/.config/vpn-gen/wireguard/yandex_wg_client.private.key"
+yandex_edge_wg_transit_private_key_path: "/Users/nmel/.config/vpn-gen/wireguard/yandex_wg_transit.private.key"
+yandex_edge_wg_client_listen_port: 53774
+yandex_edge_racknerd_wg_transit_public_key: "tHt+xqudJqKDXQIm3pgGDuvre7L3y1WkUKB7m0qgvFw="
+yandex_edge_racknerd_wg_transit_endpoint: "172.245.154.109:51821"
+
+yandex_edge_wg_client_peers:
+  - name: initial-client
+    public_key: "NCohoPleSMUYW6Ug7OlMIGesrRH/WSkQtTwgGNhifB0="
+    allowed_ips:
+      - "10.60.0.10/32"
+  - name: fresh-client
+    public_key: "+zmZ9hoXnScAGVJiZ7aL5XjkP1BG75525fc0tXI220I="
+    allowed_ips:
+      - "10.60.0.11/32"
+
+# Live split-routing source. The role reads this local controller file and
+# renders it into the nftables ru4 interval set.
+yandex_edge_ru_ipv4_cidrs_file: "/Users/nmel/.config/vpn-gen/geo/ru.zone"

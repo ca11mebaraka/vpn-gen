@@ -5,6 +5,9 @@
 PrivateKey = {{ lookup('ansible.builtin.file', wireguard_initial_client_private_key_path) | trim }}
 Address = {{ wireguard_initial_client_address }}
 DNS = {{ wireguard_initial_client_dns }}
+{% if wireguard_initial_client_mtu is defined and wireguard_initial_client_mtu | string | length > 0 %}
+MTU = {{ wireguard_initial_client_mtu }}
+{% endif %}
 
 [Peer]
 PublicKey = {{ wireguard_yandex_wg_client_public_key }}

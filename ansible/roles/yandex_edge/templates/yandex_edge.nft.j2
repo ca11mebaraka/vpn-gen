@@ -25,6 +25,10 @@ table inet yandex_edge {
     type filter hook input priority filter; policy accept;
 
     udp dport { {{ yandex_edge_wg_client_listen_port }}, {{ yandex_edge_wg_transit_listen_port }} } counter accept
+{% if yandex_edge_dns_enabled %}
+    iifname "{{ yandex_edge_wg_client_interface }}" ip saddr {{ yandex_edge_client_cidr }} udp dport 53 counter accept
+    iifname "{{ yandex_edge_wg_client_interface }}" ip saddr {{ yandex_edge_client_cidr }} tcp dport 53 counter accept
+{% endif %}
   }
 
   chain mark_client_traffic {

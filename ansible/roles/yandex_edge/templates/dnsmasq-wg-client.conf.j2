@@ -1,0 +1,12 @@
+interface={{ yandex_edge_dns_interface }}
+listen-address={{ yandex_edge_dns_listen_address }}
+bind-interfaces
+domain-needed
+bogus-priv
+no-resolv
+cache-size=1000
+filter-AAAA
+
+{% for upstream in yandex_edge_dns_upstreams %}
+server={{ upstream }}
+{% endfor %}

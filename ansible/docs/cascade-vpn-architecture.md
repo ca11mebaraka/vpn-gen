@@ -14,12 +14,21 @@ This design is intended for legitimate administration, privacy, and resilient ac
 
 ## Current Hosts
 
-- Yandex Cloud edge:
+- Primary Yandex Cloud edge:
   - Ansible host: `yc_ubuntu_2404_min`
-  - Public IP: `111.88.242.229`
+  - Role: split-routing Russian entry node
+  - Public IP: `51.250.14.221`
   - Internal IP: `10.128.0.24`
   - OS: Ubuntu 24.04
   - SSH user: `deploy`
+
+- Secondary Yandex Cloud edge:
+  - Ansible host: `yandex_wg_direct`
+  - Role: simple client entry node with Racknerd exit, no RU split
+  - Public IP: `89.169.158.239`
+  - Internal IP: `10.128.0.22`
+  - OS: Ubuntu 24.04
+  - SSH user: `yc-user`
 
 - Racknerd exit:
   - Ansible host: `racknerd_ubuntu`
@@ -32,14 +41,17 @@ This design is intended for legitimate administration, privacy, and resilient ac
 ```mermaid
 flowchart LR
   user[User device in Russia]
-  yc[Yandex Cloud edge\nWireGuard client endpoint\nPolicy routing + RU GeoIP]
-  rn[Racknerd exit\nWireGuard transit peer\nNAT for non-RU traffic]
+  yc[Primary Yandex edge\n51.250.14.221:53774\nPolicy routing + RU GeoIP]
+  yd[Secondary Yandex edge\n89.169.158.239:51944\nSimple Racknerd exit]
+  rn[Racknerd exit\n172.245.154.109\nNAT for tunneled traffic]
   ru[Russian Internet destinations]
   world[Non-Russian Internet destinations]
 
   user -- encrypted WireGuard client tunnel --> yc
+  user -. optional direct profile .-> yd
   yc -- direct NAT for RU CIDR destinations --> ru
-  yc -- encrypted WireGuard transit tunnel --> rn
+  yc -- encrypted WireGuard transit\n10.70.0.1/30 <-> 10.70.0.2/30 --> rn
+  yd -- encrypted WireGuard transit\n10.91.0.1/32 <-> 10.91.0.2/32 --> rn
   rn -- NAT exit --> world
 ```
 
@@ -48,39 +60,73 @@ flowchart LR
 - Client VPN network: `10.60.0.0/24`
   - Yandex client WireGuard interface: `10.60.0.1/24`
   - Initial client example: `10.60.0.10/32`
+  - Current fresh client example: `10.60.0.11/32`
 
-- Yandex-to-Racknerd transit network: `10.70.0.0/30`
+- Primary Yandex-to-Racknerd transit network: `10.70.0.0/30`
   - Yandex transit WireGuard interface: `10.70.0.1/30`
   - Racknerd transit WireGuard interface: `10.70.0.2/30`
+
+- Secondary Yandex direct client network: `10.80.0.0/24`
+  - Secondary Yandex client WireGuard interface: `10.80.0.1/24`
+  - Direct client example: `10.80.0.10/32`
+
+- Secondary Yandex-to-Racknerd transit network: `10.91.0.0/32` style point-to-point addresses
+  - Secondary Yandex transit WireGuard interface: `10.91.0.1/32`
+  - Racknerd direct-exit WireGuard interface: `10.91.0.2/32`
 
 - Routing policy table for non-RU traffic on Yandex: table `200`
   - Default route: `default dev wg-transit table 200`
   - Rule: marked packets `fwmark 0x2` use table `200`
 
+- Routing policy table for the secondary Yandex direct node: table `210`
+  - Default route: `default dev wg-transit table 210`
+  - Rule: packets from `10.80.0.0/24` use table `210`
+
 ## WireGuard Interfaces
 
-### Yandex Cloud
+### Primary Yandex Cloud Edge
 
 - `wg-client`
   - Listens for user devices.
-  - Public endpoint: `111.88.242.229:<client_port>`
+  - Public endpoint: `51.250.14.221:53774`
   - Address: `10.60.0.1/24`
   - Peers: user devices, each with a `/32` client address.
 
 - `wg-transit`
   - Encrypted tunnel to Racknerd.
   - Address: `10.70.0.1/30`
-  - Peer: Racknerd `172.245.154.109:<transit_port>`
+  - Peer: Racknerd `172.245.154.109:51821`
   - `Table = off`, because routes are managed explicitly by Ansible.
   - Racknerd peer `AllowedIPs` on Yandex can include `0.0.0.0/0`, but automatic route injection must stay disabled.
+
+### Secondary Yandex Direct Edge
+
+- `wg0`
+  - Listens for user devices.
+  - Public endpoint: `89.169.158.239:51944`
+  - Address: `10.80.0.1/24`
+  - Peers: user devices, each with a `/32` client address.
+
+- `wg-transit`
+  - Encrypted tunnel to Racknerd `wg-direct-exit`.
+  - Address: `10.91.0.1/32`
+  - Listen port: `51945`
+  - Peer: Racknerd `172.245.154.109:51946`
+  - `Table = off`; table `210` routes all `10.80.0.0/24` client traffic to Racknerd.
 
 ### Racknerd
 
 - `wg-transit`
   - Listens for Yandex transit.
-  - Public endpoint: `172.245.154.109:<transit_port>`
+  - Public endpoint: `172.245.154.109:51821`
   - Address: `10.70.0.2/30`
   - Yandex peer `AllowedIPs`: `10.70.0.1/32, 10.60.0.0/24`
+
+- `wg-direct-exit`
+  - Listens for the secondary Yandex direct edge.
+  - Public endpoint: `172.245.154.109:51946`
+  - Address: `10.91.0.2/32`
+  - Secondary Yandex peer `AllowedIPs`: `10.91.0.1/32, 10.80.0.0/24`
 
 ## Routing Policy
 
@@ -128,8 +174,9 @@ This creates a fail-closed path for non-RU traffic: if `wg-transit` is down, mar
 Recommended default:
 
 - Client devices use a DNS resolver on Yandex, e.g. `10.60.0.1`.
-- Yandex runs a local resolver such as `unbound`.
-- DNS requests from clients are not forwarded directly to arbitrary public resolvers.
+- The live primary Yandex edge runs `dnsmasq` bound to `wg-client` and `10.60.0.1`.
+- Current upstreams are Yandex internal DNS `10.128.0.2` and `1.1.1.1`.
+- `filter-AAAA` is enabled for the primary client resolver because the current client routing is IPv4-only.
 
 Important limitation:
 
@@ -158,10 +205,20 @@ Racknerd needs:
 
 - Forward `10.60.0.0/24` from `wg-transit` to public interface.
 - Masquerade `10.60.0.0/24` on the public interface.
+- Forward `10.80.0.0/24` from `wg-direct-exit` to public interface.
+- Masquerade `10.80.0.0/24` on the public interface.
 
 ## GeoIP RU CIDR Updates
 
-The RU CIDR set should be generated on Yandex by a systemd timer:
+The live Ansible role reads the RU CIDR list from the controller at
+`~/.config/vpn-gen/geo/ru.zone` and renders it into the `ru4` nftables interval
+set. Refresh the controller cache with:
+
+```sh
+ansible/scripts/update-ru-zone.sh
+```
+
+A future hardening step can move this to a systemd timer on Yandex:
 
 - Download an IPv4 RU zone source.
 - Validate syntax.

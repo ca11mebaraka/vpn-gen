@@ -1,0 +1,8 @@
+[Interface]
+Address = {{ racknerd_direct_exit_wg_address }}
+ListenPort = {{ racknerd_direct_exit_wg_listen_port }}
+PrivateKey = {{ racknerd_direct_exit_wg_private_key_resolved }}
+
+[Peer]
+PublicKey = {{ racknerd_direct_exit_yandex_public_key }}
+AllowedIPs = {{ racknerd_direct_exit_yandex_allowed_ips | join(', ') }}

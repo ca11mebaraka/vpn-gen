@@ -6,10 +6,16 @@
       - >
         (racknerd_exit_wg_transit_private_key | length > 0) or
         (racknerd_exit_wg_transit_private_key_path | length > 0)
+      - >
+        (not racknerd_direct_exit_enabled) or
+        (racknerd_direct_exit_yandex_public_key | length > 0)
+      - >
+        (not racknerd_direct_exit_enabled) or
+        (racknerd_direct_exit_wg_private_key | length > 0) or
+        (racknerd_direct_exit_wg_private_key_path | length > 0)
     fail_msg: >-
-      Define racknerd_exit_yandex_wg_transit_public_key and provide
-      racknerd_exit_wg_transit_private_key via Vault/extra-vars or
-      racknerd_exit_wg_transit_private_key_path outside git.
+      Define Racknerd transit public keys and provide Racknerd private keys
+      via Vault/extra-vars or *_private_key_path values outside git.
 
 - name: Use provided Racknerd transit private key
   ansible.builtin.set_fact:
@@ -22,6 +28,17 @@
     racknerd_exit_wg_transit_private_key_resolved: >-
       {{ lookup('ansible.builtin.file', racknerd_exit_wg_transit_private_key_path) | trim }}
   when: racknerd_exit_wg_transit_private_key | length == 0
+  no_log: true
+
+- name: Resolve Racknerd direct-exit private key
+  ansible.builtin.set_fact:
+    racknerd_direct_exit_wg_private_key_resolved: >-
+      {{
+        (racknerd_direct_exit_wg_private_key | trim)
+        if racknerd_direct_exit_wg_private_key | length > 0
+        else (lookup('ansible.builtin.file', racknerd_direct_exit_wg_private_key_path) | trim)
+      }}
+  when: racknerd_direct_exit_enabled
   no_log: true
 
 - name: Ensure WireGuard configuration directory exists
@@ -42,6 +59,17 @@
   notify: Restart Racknerd WireGuard transit
   no_log: true
 
+- name: Render Racknerd direct-exit WireGuard config
+  ansible.builtin.template:
+    src: wg-direct-exit.conf.j2
+    dest: "/etc/wireguard/{{ racknerd_direct_exit_wg_interface }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart Racknerd direct-exit WireGuard
+  when: racknerd_direct_exit_enabled
+  no_log: true
+
 - name: Ensure nftables include directory exists
   ansible.builtin.file:
     path: /etc/nftables.d
@@ -60,6 +88,17 @@
     validate: "nft -c -f %s"
   notify: Reload nftables
 
+- name: Render Racknerd direct-exit nftables fragment
+  ansible.builtin.template:
+    src: racknerd_direct_exit.nft.j2
+    dest: "{{ racknerd_direct_exit_nftables_fragment }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "nft -c -f %s"
+  notify: Reload nftables
+  when: racknerd_direct_exit_enabled
+
 - name: Include Racknerd nftables fragment
   ansible.builtin.lineinfile:
     path: /etc/nftables.conf
@@ -68,8 +107,26 @@
     backup: true
   notify: Reload nftables
 
+- name: Include Racknerd direct-exit nftables fragment
+  ansible.builtin.lineinfile:
+    path: /etc/nftables.conf
+    line: 'include "{{ racknerd_direct_exit_nftables_fragment }}"'
+    create: false
+    backup: true
+  notify: Reload nftables
+  when: racknerd_direct_exit_enabled
+
 - name: Enable Racknerd WireGuard transit service
   ansible.builtin.service:
     name: "wg-quick@{{ racknerd_exit_wg_transit_interface }}"
     enabled: true
     state: started
+
+- name: Enable Racknerd direct-exit WireGuard service
+  ansible.builtin.service:
+    name: "wg-quick@{{ racknerd_direct_exit_wg_interface }}"
+    enabled: true
+    state: started
+  when:
+    - racknerd_direct_exit_enabled
+    - not ansible_check_mode
