@@ -112,8 +112,8 @@
       ansible.builtin.assert:
         that:
           - "'fwmark 0x2' in yandex_ip_rules.stdout"
-          - "'lookup 200' in yandex_ip_rules.stdout"
-        fail_msg: "Expected Yandex policy rule 'fwmark 0x2 lookup 200' was not found."
+          - "'lookup 200' in yandex_ip_rules.stdout or 'lookup wg_transit' in yandex_ip_rules.stdout"
+        fail_msg: "Expected Yandex policy rule 'fwmark 0x2 lookup 200/wg_transit' was not found."
 
     - name: Read Yandex policy routing table 200
       ansible.builtin.command: ip route show table 200

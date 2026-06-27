@@ -2,6 +2,7 @@
 - name: Generate local WireGuard client config
   hosts: localhost
   connection: local
+  become: false
   gather_facts: false
 
   vars:

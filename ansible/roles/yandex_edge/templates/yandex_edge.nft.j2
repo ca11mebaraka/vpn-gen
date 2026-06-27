@@ -24,27 +24,27 @@ table inet yandex_edge {
   chain input {
     type filter hook input priority filter; policy accept;
 
-    udp dport { {{ yandex_edge_wg_client_listen_port }}, {{ yandex_edge_wg_transit_listen_port }} } accept
+    udp dport { {{ yandex_edge_wg_client_listen_port }}, {{ yandex_edge_wg_transit_listen_port }} } counter accept
   }
 
   chain mark_client_traffic {
     type filter hook prerouting priority mangle; policy accept;
 
-    iifname "{{ yandex_edge_wg_client_interface }}" ip saddr {{ yandex_edge_client_cidr }} ip daddr != @ru4 ip daddr != @bypass4 meta mark set {{ yandex_edge_policy_fwmark }}
+    iifname "{{ yandex_edge_wg_client_interface }}" ip saddr {{ yandex_edge_client_cidr }} ip daddr != @ru4 ip daddr != @bypass4 counter meta mark set {{ yandex_edge_policy_fwmark }}
   }
 
   chain forward {
     type filter hook forward priority filter; policy accept;
 
-    iifname "{{ yandex_edge_wg_client_interface }}" oifname "{{ yandex_edge_public_interface }}" ip saddr {{ yandex_edge_client_cidr }} accept
-    iifname "{{ yandex_edge_wg_client_interface }}" oifname "{{ yandex_edge_wg_transit_interface }}" ip saddr {{ yandex_edge_client_cidr }} meta mark {{ yandex_edge_policy_fwmark }} accept
-    iifname "{{ yandex_edge_public_interface }}" oifname "{{ yandex_edge_wg_client_interface }}" ip daddr {{ yandex_edge_client_cidr }} ct state established,related accept
-    iifname "{{ yandex_edge_wg_transit_interface }}" oifname "{{ yandex_edge_wg_client_interface }}" ip daddr {{ yandex_edge_client_cidr }} ct state established,related accept
+    iifname "{{ yandex_edge_wg_client_interface }}" oifname "{{ yandex_edge_public_interface }}" ip saddr {{ yandex_edge_client_cidr }} counter accept
+    iifname "{{ yandex_edge_wg_client_interface }}" oifname "{{ yandex_edge_wg_transit_interface }}" ip saddr {{ yandex_edge_client_cidr }} meta mark {{ yandex_edge_policy_fwmark }} counter accept
+    iifname "{{ yandex_edge_public_interface }}" oifname "{{ yandex_edge_wg_client_interface }}" ip daddr {{ yandex_edge_client_cidr }} ct state established,related counter accept
+    iifname "{{ yandex_edge_wg_transit_interface }}" oifname "{{ yandex_edge_wg_client_interface }}" ip daddr {{ yandex_edge_client_cidr }} ct state established,related counter accept
   }
 
   chain postrouting {
     type nat hook postrouting priority srcnat; policy accept;
 
-    oifname "{{ yandex_edge_public_interface }}" ip saddr {{ yandex_edge_client_cidr }} masquerade
+    oifname "{{ yandex_edge_public_interface }}" ip saddr {{ yandex_edge_client_cidr }} counter masquerade
   }
 }
