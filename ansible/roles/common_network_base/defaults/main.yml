@@ -1,0 +1,11 @@
+---
+common_network_base_packages:
+  - wireguard
+  - wireguard-tools
+  - nftables
+  - iproute2
+  - curl
+  - ca-certificates
+  - python3
+
+common_network_base_ipv4_forwarding_sysctl: net.ipv4.ip_forward

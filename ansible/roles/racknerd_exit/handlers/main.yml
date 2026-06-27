@@ -1,0 +1,17 @@
+---
+- name: Restart Racknerd WireGuard transit
+  ansible.builtin.service:
+    name: "wg-quick@{{ racknerd_exit_wg_transit_interface }}"
+    enabled: true
+    state: restarted
+
+- name: Validate nftables before reload
+  ansible.builtin.command: nft -c -f /etc/nftables.conf
+  changed_when: false
+  listen: Reload nftables
+
+- name: Reload nftables service
+  ansible.builtin.service:
+    name: nftables
+    state: reloaded
+  listen: Reload nftables

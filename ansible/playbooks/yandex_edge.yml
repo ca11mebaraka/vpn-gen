@@ -1,0 +1,6 @@
+---
+- name: Configure Yandex WireGuard edge
+  hosts: yandex_cloud
+  gather_facts: true
+  roles:
+    - role: ../roles/yandex_edge

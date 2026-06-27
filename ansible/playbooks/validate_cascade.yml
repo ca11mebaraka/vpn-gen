@@ -1,0 +1,190 @@
+---
+- name: Validate cascade VPN baseline and shared host state
+  hosts: all
+  gather_facts: false
+  vars:
+    expected_wg_interfaces: >-
+      {{
+        ['wg-client', 'wg-transit']
+        if inventory_hostname in groups.get('yandex_cloud', [])
+        else ['wg-transit']
+        if inventory_hostname in groups.get('external_vps', [])
+        else []
+      }}
+
+  tasks:
+    - name: Confirm SSH connectivity
+      ansible.builtin.wait_for_connection:
+        timeout: 20
+
+    - name: Confirm login user
+      ansible.builtin.command: whoami
+      become: false
+      changed_when: false
+      register: validate_whoami
+
+    - name: Confirm passwordless sudo
+      ansible.builtin.command: sudo -n true
+      become: false
+      changed_when: false
+
+    - name: Gather minimal host facts
+      ansible.builtin.setup:
+        gather_subset:
+          - min
+
+    - name: Confirm IPv4 forwarding is enabled
+      ansible.builtin.command: sysctl -n net.ipv4.ip_forward
+      become: true
+      changed_when: false
+      register: ip_forward_state
+
+    - name: Assert IPv4 forwarding state
+      ansible.builtin.assert:
+        that:
+          - ip_forward_state.stdout == '1'
+        fail_msg: "net.ipv4.ip_forward must be 1 for cascade forwarding."
+
+    - name: List WireGuard interfaces known to kernel
+      ansible.builtin.command: wg show interfaces
+      become: true
+      changed_when: false
+      register: wg_show_interfaces
+
+    - name: Assert expected WireGuard interfaces are present
+      ansible.builtin.assert:
+        that:
+          - expected_wg_interfaces | difference(wg_show_interfaces.stdout.split()) | length == 0
+        fail_msg: "Missing expected WireGuard interfaces: {{ expected_wg_interfaces | difference(wg_show_interfaces.stdout.split()) }}"
+
+    - name: Check expected WireGuard service state
+      ansible.builtin.command: "systemctl is-active wg-quick@{{ item }}.service"
+      become: true
+      changed_when: false
+      register: wg_service_state
+      failed_when: wg_service_state.rc != 0
+      loop: "{{ expected_wg_interfaces }}"
+
+    - name: Check expected WireGuard link state
+      ansible.builtin.command: "ip link show dev {{ item }}"
+      become: true
+      changed_when: false
+      loop: "{{ expected_wg_interfaces }}"
+
+    - name: Check expected WireGuard runtime details
+      ansible.builtin.command: "wg show {{ item }}"
+      become: true
+      changed_when: false
+      loop: "{{ expected_wg_interfaces }}"
+
+    - name: Read nftables ruleset
+      ansible.builtin.command: nft list ruleset
+      become: true
+      changed_when: false
+      register: nft_ruleset
+
+    - name: Assert nftables ruleset is loaded
+      ansible.builtin.assert:
+        that:
+          - nft_ruleset.stdout | length > 0
+        fail_msg: "nftables ruleset is empty or unavailable."
+
+    - name: Report baseline validation summary
+      ansible.builtin.debug:
+        msg:
+          host: "{{ inventory_hostname }}"
+          connected_as: "{{ validate_whoami.stdout }}"
+          expected_wg_interfaces: "{{ expected_wg_interfaces }}"
+          nft_counter_expressions_present: "{{ 'counter' in nft_ruleset.stdout }}"
+
+- name: Validate Yandex edge routing and split policy
+  hosts: yandex_cloud
+  gather_facts: false
+
+  tasks:
+    - name: Read Yandex policy routing rules
+      ansible.builtin.command: ip rule show
+      become: true
+      changed_when: false
+      register: yandex_ip_rules
+
+    - name: Assert Yandex fwmark rule for table 200 exists
+      ansible.builtin.assert:
+        that:
+          - "'fwmark 0x2' in yandex_ip_rules.stdout"
+          - "'lookup 200' in yandex_ip_rules.stdout"
+        fail_msg: "Expected Yandex policy rule 'fwmark 0x2 lookup 200' was not found."
+
+    - name: Read Yandex policy routing table 200
+      ansible.builtin.command: ip route show table 200
+      become: true
+      changed_when: false
+      register: yandex_table_200
+
+    - name: Assert Yandex table 200 routes default traffic to transit
+      ansible.builtin.assert:
+        that:
+          - "'default' in yandex_table_200.stdout"
+          - "'dev wg-transit' in yandex_table_200.stdout"
+        fail_msg: "Expected table 200 default route through wg-transit was not found."
+
+    - name: Probe marked non-RU route decision
+      ansible.builtin.command: ip route get 1.1.1.1 mark 0x2
+      become: true
+      changed_when: false
+      register: yandex_marked_route
+
+    - name: Assert marked non-RU probe uses transit
+      ansible.builtin.assert:
+        that:
+          - "'wg-transit' in yandex_marked_route.stdout"
+        fail_msg: "Marked route probe did not resolve through wg-transit."
+
+    - name: Read Yandex nftables ruleset
+      ansible.builtin.command: nft list ruleset
+      become: true
+      changed_when: false
+      register: yandex_nft_ruleset
+
+    - name: Assert Yandex nftables split-routing rules are present
+      ansible.builtin.assert:
+        that:
+          - "'wg-client' in yandex_nft_ruleset.stdout"
+          - "'wg-transit' in yandex_nft_ruleset.stdout"
+          - "'ru4' in yandex_nft_ruleset.stdout"
+          - "'0x00000002' in yandex_nft_ruleset.stdout or '0x2' in yandex_nft_ruleset.stdout"
+          - "'masquerade' in yandex_nft_ruleset.stdout"
+          - "'counter' in yandex_nft_ruleset.stdout"
+        fail_msg: "Yandex nftables ruleset is missing expected split-routing, NAT, or counter expressions."
+
+- name: Validate Racknerd exit routing and NAT assumptions
+  hosts: external_vps
+  gather_facts: false
+
+  tasks:
+    - name: Probe Racknerd route back to client subnet
+      ansible.builtin.command: ip route get 10.60.0.10
+      become: true
+      changed_when: false
+      register: racknerd_route_to_client
+
+    - name: Assert Racknerd routes client subnet through transit
+      ansible.builtin.assert:
+        that:
+          - "'wg-transit' in racknerd_route_to_client.stdout"
+        fail_msg: "Racknerd route to 10.60.0.10 does not use wg-transit."
+
+    - name: Read Racknerd nftables ruleset
+      ansible.builtin.command: nft list ruleset
+      become: true
+      changed_when: false
+      register: racknerd_nft_ruleset
+
+    - name: Assert Racknerd NAT assumptions
+      ansible.builtin.assert:
+        that:
+          - "'wg-transit' in racknerd_nft_ruleset.stdout"
+          - "'10.60.0.0/24' in racknerd_nft_ruleset.stdout"
+          - "'masquerade' in racknerd_nft_ruleset.stdout"
+          - "'counter' in racknerd_nft_ruleset.stdout"
+        fail_msg: "Racknerd nftables ruleset is missing expected transit NAT or counter expressions."

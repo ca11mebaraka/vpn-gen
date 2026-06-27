@@ -1,0 +1,6 @@
+---
+- name: Configure Racknerd WireGuard transit exit
+  hosts: external_vps
+  gather_facts: true
+  roles:
+    - role: ../roles/racknerd_exit

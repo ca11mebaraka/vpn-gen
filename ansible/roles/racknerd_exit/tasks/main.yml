@@ -1,0 +1,75 @@
+---
+- name: Validate Racknerd exit inputs
+  ansible.builtin.assert:
+    that:
+      - racknerd_exit_yandex_wg_transit_public_key | length > 0
+      - >
+        (racknerd_exit_wg_transit_private_key | length > 0) or
+        (racknerd_exit_wg_transit_private_key_path | length > 0)
+    fail_msg: >-
+      Define racknerd_exit_yandex_wg_transit_public_key and provide
+      racknerd_exit_wg_transit_private_key via Vault/extra-vars or
+      racknerd_exit_wg_transit_private_key_path outside git.
+
+- name: Use provided Racknerd transit private key
+  ansible.builtin.set_fact:
+    racknerd_exit_wg_transit_private_key_resolved: "{{ racknerd_exit_wg_transit_private_key | trim }}"
+  when: racknerd_exit_wg_transit_private_key | length > 0
+  no_log: true
+
+- name: Load Racknerd transit private key from external path
+  ansible.builtin.set_fact:
+    racknerd_exit_wg_transit_private_key_resolved: >-
+      {{ lookup('ansible.builtin.file', racknerd_exit_wg_transit_private_key_path) | trim }}
+  when: racknerd_exit_wg_transit_private_key | length == 0
+  no_log: true
+
+- name: Ensure WireGuard configuration directory exists
+  ansible.builtin.file:
+    path: /etc/wireguard
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Render Racknerd WireGuard transit config
+  ansible.builtin.template:
+    src: wg-transit.conf.j2
+    dest: "/etc/wireguard/{{ racknerd_exit_wg_transit_interface }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart Racknerd WireGuard transit
+  no_log: true
+
+- name: Ensure nftables include directory exists
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render Racknerd nftables fragment
+  ansible.builtin.template:
+    src: racknerd_exit.nft.j2
+    dest: "{{ racknerd_exit_nftables_fragment }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "nft -c -f %s"
+  notify: Reload nftables
+
+- name: Include Racknerd nftables fragment
+  ansible.builtin.lineinfile:
+    path: /etc/nftables.conf
+    line: 'include "{{ racknerd_exit_nftables_fragment }}"'
+    create: false
+    backup: true
+  notify: Reload nftables
+
+- name: Enable Racknerd WireGuard transit service
+  ansible.builtin.service:
+    name: "wg-quick@{{ racknerd_exit_wg_transit_interface }}"
+    enabled: true
+    state: started

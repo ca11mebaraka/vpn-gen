@@ -1,0 +1,114 @@
+---
+- name: Validate Yandex edge inputs
+  ansible.builtin.assert:
+    that:
+      - yandex_edge_racknerd_wg_transit_public_key | length > 0
+      - >
+        (yandex_edge_wg_client_private_key | length > 0) or
+        (yandex_edge_wg_client_private_key_path | length > 0)
+      - >
+        (yandex_edge_wg_transit_private_key | length > 0) or
+        (yandex_edge_wg_transit_private_key_path | length > 0)
+    fail_msg: >-
+      Define yandex_edge_racknerd_wg_transit_public_key and provide
+      yandex_edge_wg_client_private_key plus yandex_edge_wg_transit_private_key
+      via Vault/extra-vars or *_private_key_path values outside git.
+
+- name: Use provided Yandex client private key
+  ansible.builtin.set_fact:
+    yandex_edge_wg_client_private_key_resolved: "{{ yandex_edge_wg_client_private_key | trim }}"
+  when: yandex_edge_wg_client_private_key | length > 0
+  no_log: true
+
+- name: Load Yandex client private key from external path
+  ansible.builtin.set_fact:
+    yandex_edge_wg_client_private_key_resolved: >-
+      {{ lookup('ansible.builtin.file', yandex_edge_wg_client_private_key_path) | trim }}
+  when: yandex_edge_wg_client_private_key | length == 0
+  no_log: true
+
+- name: Use provided Yandex transit private key
+  ansible.builtin.set_fact:
+    yandex_edge_wg_transit_private_key_resolved: "{{ yandex_edge_wg_transit_private_key | trim }}"
+  when: yandex_edge_wg_transit_private_key | length > 0
+  no_log: true
+
+- name: Load Yandex transit private key from external path
+  ansible.builtin.set_fact:
+    yandex_edge_wg_transit_private_key_resolved: >-
+      {{ lookup('ansible.builtin.file', yandex_edge_wg_transit_private_key_path) | trim }}
+  when: yandex_edge_wg_transit_private_key | length == 0
+  no_log: true
+
+- name: Ensure WireGuard configuration directory exists
+  ansible.builtin.file:
+    path: /etc/wireguard
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Register WireGuard transit policy table name
+  ansible.builtin.lineinfile:
+    path: /etc/iproute2/rt_tables
+    regexp: "^{{ yandex_edge_policy_table }}\\s+"
+    line: "{{ yandex_edge_policy_table }} wg_transit"
+    create: false
+
+- name: Render Yandex WireGuard client config
+  ansible.builtin.template:
+    src: wg-client.conf.j2
+    dest: "/etc/wireguard/{{ yandex_edge_wg_client_interface }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart Yandex WireGuard client
+  no_log: true
+
+- name: Render Yandex WireGuard transit config
+  ansible.builtin.template:
+    src: wg-transit.conf.j2
+    dest: "/etc/wireguard/{{ yandex_edge_wg_transit_interface }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart Yandex WireGuard transit
+  no_log: true
+
+- name: Ensure nftables include directory exists
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render Yandex nftables fragment
+  ansible.builtin.template:
+    src: yandex_edge.nft.j2
+    dest: "{{ yandex_edge_nftables_fragment }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "nft -c -f %s"
+  notify: Reload nftables
+
+- name: Include Yandex nftables fragment
+  ansible.builtin.lineinfile:
+    path: /etc/nftables.conf
+    line: 'include "{{ yandex_edge_nftables_fragment }}"'
+    create: false
+    backup: true
+  notify: Reload nftables
+
+- name: Enable Yandex WireGuard client service
+  ansible.builtin.service:
+    name: "wg-quick@{{ yandex_edge_wg_client_interface }}"
+    enabled: true
+    state: started
+
+- name: Enable Yandex WireGuard transit service
+  ansible.builtin.service:
+    name: "wg-quick@{{ yandex_edge_wg_transit_interface }}"
+    enabled: true
+    state: started

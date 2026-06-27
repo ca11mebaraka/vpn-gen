@@ -1,0 +1,18 @@
+---
+racknerd_exit_wg_transit_interface: wg-transit
+racknerd_exit_wg_transit_address: 10.70.0.2/30
+racknerd_exit_wg_transit_listen_port: 51821
+
+# Provide either the private key value through Ansible Vault/extra-vars or a
+# path outside the repository. Do not commit private keys.
+racknerd_exit_wg_transit_private_key: ""
+racknerd_exit_wg_transit_private_key_path: ""
+
+racknerd_exit_yandex_wg_transit_public_key: ""
+racknerd_exit_yandex_allowed_ips:
+  - 10.70.0.1/32
+  - 10.60.0.0/24
+
+racknerd_exit_client_cidr: 10.60.0.0/24
+racknerd_exit_public_interface: eth0
+racknerd_exit_nftables_fragment: /etc/nftables.d/racknerd_exit.nft

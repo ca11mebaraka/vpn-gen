@@ -1,0 +1,17 @@
+[Interface]
+Address = {{ yandex_edge_wg_client_address }}
+ListenPort = {{ yandex_edge_wg_client_listen_port }}
+PrivateKey = {{ yandex_edge_wg_client_private_key_resolved }}
+
+{% for peer in yandex_edge_wg_client_peers %}
+[Peer]
+PublicKey = {{ peer.public_key }}
+{% if peer.preshared_key is defined and peer.preshared_key | length > 0 %}
+PresharedKey = {{ peer.preshared_key }}
+{% endif %}
+AllowedIPs = {{ peer.allowed_ips | join(', ') }}
+{% if peer.persistent_keepalive is defined %}
+PersistentKeepalive = {{ peer.persistent_keepalive }}
+{% endif %}
+
+{% endfor %}

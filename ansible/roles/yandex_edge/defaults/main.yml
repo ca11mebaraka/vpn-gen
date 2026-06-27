@@ -1,0 +1,45 @@
+---
+yandex_edge_wg_client_interface: wg-client
+yandex_edge_wg_client_address: 10.60.0.1/24
+yandex_edge_wg_client_listen_port: 51820
+
+yandex_edge_wg_transit_interface: wg-transit
+yandex_edge_wg_transit_address: 10.70.0.1/30
+yandex_edge_wg_transit_listen_port: 51821
+
+# Provide private key values through Ansible Vault/extra-vars or paths outside
+# the repository. Do not commit private keys.
+yandex_edge_wg_client_private_key: ""
+yandex_edge_wg_client_private_key_path: ""
+yandex_edge_wg_transit_private_key: ""
+yandex_edge_wg_transit_private_key_path: ""
+
+yandex_edge_wg_client_peers: []
+
+yandex_edge_racknerd_wg_transit_public_key: ""
+yandex_edge_racknerd_wg_transit_endpoint: "172.245.154.109:{{ yandex_edge_wg_transit_listen_port }}"
+yandex_edge_racknerd_allowed_ips:
+  - 0.0.0.0/0
+yandex_edge_racknerd_persistent_keepalive: 25
+
+yandex_edge_client_cidr: 10.60.0.0/24
+yandex_edge_public_interface: eth0
+yandex_edge_policy_table: 200
+yandex_edge_policy_rule_priority: 200
+yandex_edge_policy_fwmark: "0x2"
+yandex_edge_nftables_fragment: /etc/nftables.d/yandex_edge.nft
+
+# Agent 6 is expected to replace this with a generated RU CIDR include/update
+# mechanism. Keeping it configurable lets Agent 5 pass syntax checks safely.
+yandex_edge_ru_ipv4_cidrs: []
+
+yandex_edge_bypass_ipv4_cidrs:
+  - 10.0.0.0/8
+  - 100.64.0.0/10
+  - 127.0.0.0/8
+  - 169.254.0.0/16
+  - 172.16.0.0/12
+  - 192.168.0.0/16
+  - 224.0.0.0/4
+  - 172.245.154.109/32
+  - 10.70.0.0/30

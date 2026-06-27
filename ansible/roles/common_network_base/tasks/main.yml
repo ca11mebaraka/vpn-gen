@@ -1,0 +1,34 @@
+---
+- name: Ensure common network packages are installed
+  ansible.builtin.apt:
+    name: "{{ common_network_base_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Enable IPv4 forwarding
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-common-network-base.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      {{ common_network_base_ipv4_forwarding_sysctl }} = 1
+  notify: Reload sysctl configuration
+
+- name: Read current IPv4 forwarding state
+  ansible.builtin.command: "sysctl -n {{ common_network_base_ipv4_forwarding_sysctl }}"
+  register: common_network_base_ipv4_forwarding_current
+  changed_when: false
+  check_mode: false
+
+- name: Set runtime IPv4 forwarding
+  ansible.builtin.command: "sysctl -w {{ common_network_base_ipv4_forwarding_sysctl }}=1"
+  when: common_network_base_ipv4_forwarding_current.stdout != "1"
+  changed_when: true
+
+- name: Ensure nftables service is enabled and running
+  ansible.builtin.service:
+    name: nftables
+    enabled: true
+    state: started

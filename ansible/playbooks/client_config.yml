@@ -1,0 +1,72 @@
+---
+- name: Generate local WireGuard client config
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    wireguard_default_public_vars_file: "{{ lookup('ansible.builtin.env', 'HOME') }}/.config/vpn-gen/wireguard/public-vars.yml"
+    wireguard_public_vars_file_path: "{{ lookup('ansible.builtin.env', 'VPN_GEN_WG_PUBLIC_VARS_FILE') | default(wireguard_default_public_vars_file, true) }}"
+
+  tasks:
+    - name: Check generated public vars file exists
+      ansible.builtin.stat:
+        path: "{{ wireguard_public_vars_file_path }}"
+      register: wireguard_public_vars_stat
+
+    - name: Refuse to continue without generated public vars
+      ansible.builtin.fail:
+        msg: >-
+          Public vars file is missing. Run
+          ansible/scripts/wg-secrets-init.sh first, or set
+          VPN_GEN_WG_PUBLIC_VARS_FILE to the generated public-vars.yml path.
+      when: not wireguard_public_vars_stat.stat.exists
+
+    - name: Load generated public WireGuard vars
+      ansible.builtin.include_vars:
+        file: "{{ wireguard_public_vars_file_path }}"
+
+    - name: Validate required public client config vars
+      ansible.builtin.assert:
+        that:
+          - wireguard_initial_client_private_key_path is defined
+          - wireguard_initial_client_private_key_path | length > 0
+          - wireguard_initial_client_config_path is defined
+          - wireguard_initial_client_config_path | length > 0
+          - wireguard_initial_client_address is defined
+          - wireguard_initial_client_dns is defined
+          - wireguard_yandex_wg_client_public_key is match('^[A-Za-z0-9+/]{43}=$')
+          - wireguard_yandex_client_endpoint_host is defined
+          - wireguard_yandex_client_endpoint_port is defined
+          - wireguard_client_allowed_ips is defined
+        fail_msg: "Generated public vars are incomplete or malformed."
+
+    - name: Check local initial client private key exists
+      ansible.builtin.stat:
+        path: "{{ wireguard_initial_client_private_key_path }}"
+      register: wireguard_initial_client_private_key_stat
+      no_log: true
+
+    - name: Refuse to render without local private key file
+      ansible.builtin.fail:
+        msg: "Initial client private key file is missing or empty."
+      when: >-
+        not wireguard_initial_client_private_key_stat.stat.exists
+        or wireguard_initial_client_private_key_stat.stat.size | int == 0
+
+    - name: Ensure local client config directory exists
+      ansible.builtin.file:
+        path: "{{ wireguard_initial_client_config_path | dirname }}"
+        state: directory
+        mode: "0700"
+
+    - name: Render local initial WireGuard client config
+      ansible.builtin.template:
+        src: "../templates/client/initial-client.conf.j2"
+        dest: "{{ wireguard_initial_client_config_path }}"
+        mode: "0600"
+      no_log: true
+
+    - name: Show generated client config path
+      ansible.builtin.debug:
+        msg: "Generated local client config at {{ wireguard_initial_client_config_path }}"
