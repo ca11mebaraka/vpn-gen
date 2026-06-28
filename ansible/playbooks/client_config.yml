@@ -36,9 +36,9 @@
           - wireguard_initial_client_config_path | length > 0
           - wireguard_initial_client_address is defined
           - wireguard_initial_client_dns is defined
-          - wireguard_yandex_wg_client_public_key is match('^[A-Za-z0-9+/]{43}=$')
-          - wireguard_yandex_client_endpoint_host is defined
-          - wireguard_yandex_client_endpoint_port is defined
+          - wireguard_entry_split_wg_client_public_key is match('^[A-Za-z0-9+/]{43}=$')
+          - wireguard_entry_split_client_endpoint_host is defined
+          - wireguard_entry_split_client_endpoint_port is defined
           - wireguard_client_allowed_ips is defined
         fail_msg: "Generated public vars are incomplete or malformed."
 

@@ -1,0 +1,6 @@
+---
+- name: Configure exit WireGuard transit exit
+  hosts: exit
+  gather_facts: true
+  roles:
+    - role: ../roles/exit

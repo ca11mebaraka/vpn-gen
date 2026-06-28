@@ -1,0 +1,14 @@
+ansible_ssh_private_key_file: ~/.ssh/vps_172_245_154_109_ed25519
+
+host_notes:
+  os: Ubuntu Linux
+  public_ip: 172.245.154.109
+  ssh_user: deploy
+  ssh_key: ~/.ssh/vps_172_245_154_109_ed25519
+
+exit_wg_transit_private_key_path: "/Users/nmel/.config/vpn-gen/wireguard/racknerd_wg_transit.private.key"
+exit_entry_split_wg_transit_public_key: "Kd7rT5QGbKN8tkVuYmLEX2VkB7Qcs0+ZWXwgyd5GxkQ="
+
+exit_entry_full_enabled: true
+exit_entry_full_wg_private_key_path: "/Users/nmel/.config/vpn-gen/wireguard-entry-full/exit_entry_full_wg.private.key"
+exit_entry_full_public_key: "PFMIDXQfNBTcvz8rmODwcbsML3q5tg3k2ldGhJ7lkns="

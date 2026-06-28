@@ -6,9 +6,11 @@
     expected_wg_interfaces: >-
       {{
         ['wg-client', 'wg-transit']
-        if inventory_hostname in groups.get('yandex_cloud', [])
-        else ['wg-transit']
-        if inventory_hostname in groups.get('external_vps', [])
+        if inventory_hostname in groups.get('entry_split', [])
+        else ['wg0', 'wg-transit']
+        if inventory_hostname in groups.get('entry_full', [])
+        else (['wg-transit', 'wg-exit-full'] if exit_entry_full_enabled | default(false) else ['wg-transit'])
+        if inventory_hostname in groups.get('exit', [])
         else []
       }}
 
@@ -97,94 +99,94 @@
           expected_wg_interfaces: "{{ expected_wg_interfaces }}"
           nft_counter_expressions_present: "{{ 'counter' in nft_ruleset.stdout }}"
 
-- name: Validate Yandex edge routing and split policy
-  hosts: yandex_cloud
+- name: Validate split entry routing and policy
+  hosts: entry_split
   gather_facts: false
 
   tasks:
-    - name: Read Yandex policy routing rules
+    - name: Read entry policy routing rules
       ansible.builtin.command: ip rule show
       become: true
       changed_when: false
-      register: yandex_ip_rules
+      register: entry_split_ip_rules
 
-    - name: Assert Yandex fwmark rule for table 200 exists
+    - name: Assert entry fwmark rule for table 200 exists
       ansible.builtin.assert:
         that:
-          - "'fwmark 0x2' in yandex_ip_rules.stdout"
-          - "'lookup 200' in yandex_ip_rules.stdout or 'lookup wg_transit' in yandex_ip_rules.stdout"
-        fail_msg: "Expected Yandex policy rule 'fwmark 0x2 lookup 200/wg_transit' was not found."
+          - "'fwmark 0x2' in entry_split_ip_rules.stdout"
+          - "'lookup 200' in entry_split_ip_rules.stdout or 'lookup wg_transit' in entry_split_ip_rules.stdout"
+        fail_msg: "Expected entry policy rule 'fwmark 0x2 lookup 200/wg_transit' was not found."
 
-    - name: Read Yandex policy routing table 200
+    - name: Read entry policy routing table 200
       ansible.builtin.command: ip route show table 200
       become: true
       changed_when: false
-      register: yandex_table_200
+      register: entry_split_table_200
 
-    - name: Assert Yandex table 200 routes default traffic to transit
+    - name: Assert entry table 200 routes default traffic to transit
       ansible.builtin.assert:
         that:
-          - "'default' in yandex_table_200.stdout"
-          - "'dev wg-transit' in yandex_table_200.stdout"
+          - "'default' in entry_split_table_200.stdout"
+          - "'dev wg-transit' in entry_split_table_200.stdout"
         fail_msg: "Expected table 200 default route through wg-transit was not found."
 
     - name: Probe marked non-RU route decision
       ansible.builtin.command: ip route get 1.1.1.1 mark 0x2
       become: true
       changed_when: false
-      register: yandex_marked_route
+      register: entry_split_marked_route
 
     - name: Assert marked non-RU probe uses transit
       ansible.builtin.assert:
         that:
-          - "'wg-transit' in yandex_marked_route.stdout"
+          - "'wg-transit' in entry_split_marked_route.stdout"
         fail_msg: "Marked route probe did not resolve through wg-transit."
 
-    - name: Read Yandex nftables ruleset
+    - name: Read entry nftables ruleset
       ansible.builtin.command: nft list ruleset
       become: true
       changed_when: false
-      register: yandex_nft_ruleset
+      register: entry_split_nft_ruleset
 
-    - name: Assert Yandex nftables split-routing rules are present
+    - name: Assert entry nftables split-routing rules are present
       ansible.builtin.assert:
         that:
-          - "'wg-client' in yandex_nft_ruleset.stdout"
-          - "'wg-transit' in yandex_nft_ruleset.stdout"
-          - "'ru4' in yandex_nft_ruleset.stdout"
-          - "'0x00000002' in yandex_nft_ruleset.stdout or '0x2' in yandex_nft_ruleset.stdout"
-          - "'masquerade' in yandex_nft_ruleset.stdout"
-          - "'counter' in yandex_nft_ruleset.stdout"
-        fail_msg: "Yandex nftables ruleset is missing expected split-routing, NAT, or counter expressions."
+          - "'wg-client' in entry_split_nft_ruleset.stdout"
+          - "'wg-transit' in entry_split_nft_ruleset.stdout"
+          - "'ru4' in entry_split_nft_ruleset.stdout"
+          - "'0x00000002' in entry_split_nft_ruleset.stdout or '0x2' in entry_split_nft_ruleset.stdout"
+          - "'masquerade' in entry_split_nft_ruleset.stdout"
+          - "'counter' in entry_split_nft_ruleset.stdout"
+        fail_msg: "Split entry nftables ruleset is missing expected split-routing, NAT, or counter expressions."
 
-- name: Validate Racknerd exit routing and NAT assumptions
-  hosts: external_vps
+- name: Validate Exit node routing and NAT assumptions
+  hosts: exit
   gather_facts: false
 
   tasks:
-    - name: Probe Racknerd route back to client subnet
+    - name: Probe exit route back to client subnet
       ansible.builtin.command: ip route get 10.60.0.10
       become: true
       changed_when: false
-      register: racknerd_route_to_client
+      register: exit_route_to_client
 
-    - name: Assert Racknerd routes client subnet through transit
+    - name: Assert exit routes client subnet through transit
       ansible.builtin.assert:
         that:
-          - "'wg-transit' in racknerd_route_to_client.stdout"
-        fail_msg: "Racknerd route to 10.60.0.10 does not use wg-transit."
+          - "'wg-transit' in exit_route_to_client.stdout"
+        fail_msg: "exit route to 10.60.0.10 does not use wg-transit."
 
-    - name: Read Racknerd nftables ruleset
+    - name: Read exit nftables ruleset
       ansible.builtin.command: nft list ruleset
       become: true
       changed_when: false
-      register: racknerd_nft_ruleset
+      register: exit_nft_ruleset
 
-    - name: Assert Racknerd NAT assumptions
+    - name: Assert exit NAT assumptions
       ansible.builtin.assert:
         that:
-          - "'wg-transit' in racknerd_nft_ruleset.stdout"
-          - "'10.60.0.0/24' in racknerd_nft_ruleset.stdout"
-          - "'masquerade' in racknerd_nft_ruleset.stdout"
-          - "'counter' in racknerd_nft_ruleset.stdout"
-        fail_msg: "Racknerd nftables ruleset is missing expected transit NAT or counter expressions."
+          - "'wg-transit' in exit_nft_ruleset.stdout"
+          - "'10.60.0.0/24' in exit_nft_ruleset.stdout"
+          - "'masquerade' in exit_nft_ruleset.stdout"
+          - "'counter' in exit_nft_ruleset.stdout"
+        fail_msg: "exit nftables ruleset is missing expected transit NAT or counter expressions."

@@ -1,0 +1,8 @@
+[Interface]
+Address = {{ exit_entry_full_wg_address }}
+ListenPort = {{ exit_entry_full_wg_listen_port }}
+PrivateKey = {{ exit_entry_full_wg_private_key_resolved }}
+
+[Peer]
+PublicKey = {{ exit_entry_full_public_key }}
+AllowedIPs = {{ exit_entry_full_allowed_ips | join(', ') }}

@@ -17,14 +17,14 @@
       tags:
         - always
 
-- name: Roll back Yandex edge services and policy routing
-  hosts: yandex_cloud
+- name: Roll back entry edge services and policy routing
+  hosts: entry
   gather_facts: false
   vars:
     confirm_rollback: false
 
   tasks:
-    - name: Stop and disable Yandex client WireGuard service
+    - name: Stop and disable entry client WireGuard service
       ansible.builtin.systemd_service:
         name: wg-quick@wg-client.service
         state: stopped
@@ -34,10 +34,10 @@
       tags:
         - rollback
         - wireguard
-        - yandex
+        - entry_split
         - stop_services
 
-    - name: Stop and disable Yandex transit WireGuard service
+    - name: Stop and disable entry transit WireGuard service
       ansible.builtin.systemd_service:
         name: wg-quick@wg-transit.service
         state: stopped
@@ -47,36 +47,36 @@
       tags:
         - rollback
         - wireguard
-        - yandex
+        - entry_split
         - stop_services
 
-    - name: Remove Yandex table 200 default transit route
+    - name: Remove entry table 200 default transit route
       ansible.builtin.command: ip route del default dev wg-transit table 200
       become: true
-      register: yandex_remove_table_200_default
-      changed_when: yandex_remove_table_200_default.rc == 0
-      failed_when: yandex_remove_table_200_default.rc not in [0, 2]
+      register: entry_split_remove_table_200_default
+      changed_when: entry_split_remove_table_200_default.rc == 0
+      failed_when: entry_split_remove_table_200_default.rc not in [0, 2]
       when: confirm_rollback | bool
       tags:
         - rollback
         - routing
-        - yandex
+        - entry_split
         - policy_routing
 
-    - name: Remove Yandex fwmark policy rule for table 200
+    - name: Remove entry fwmark policy rule for table 200
       ansible.builtin.command: ip rule del fwmark 0x2 table 200
       become: true
-      register: yandex_remove_fwmark_rule
-      changed_when: yandex_remove_fwmark_rule.rc == 0
-      failed_when: yandex_remove_fwmark_rule.rc not in [0, 2]
+      register: entry_split_remove_fwmark_rule
+      changed_when: entry_split_remove_fwmark_rule.rc == 0
+      failed_when: entry_split_remove_fwmark_rule.rc not in [0, 2]
       when: confirm_rollback | bool
       tags:
         - rollback
         - routing
-        - yandex
+        - entry_split
         - policy_routing
 
-    - name: Flush Yandex route cache after policy rollback
+    - name: Flush entry route cache after policy rollback
       ansible.builtin.command: ip route flush cache
       become: true
       changed_when: false
@@ -85,17 +85,17 @@
       tags:
         - rollback
         - routing
-        - yandex
+        - entry_split
         - policy_routing
 
-- name: Roll back Racknerd transit service
-  hosts: external_vps
+- name: Roll back exit transit service
+  hosts: exit
   gather_facts: false
   vars:
     confirm_rollback: false
 
   tasks:
-    - name: Stop and disable Racknerd transit WireGuard service
+    - name: Stop and disable exit transit WireGuard service
       ansible.builtin.systemd_service:
         name: wg-quick@wg-transit.service
         state: stopped
@@ -105,5 +105,5 @@
       tags:
         - rollback
         - wireguard
-        - racknerd
+        - exit
         - stop_services

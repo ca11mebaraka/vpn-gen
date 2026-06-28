@@ -115,16 +115,16 @@ client_endpoint_port=${VPN_GEN_WG_CLIENT_ENDPOINT_PORT:-"53774"}
 transit_endpoint_port=${VPN_GEN_WG_TRANSIT_ENDPOINT_PORT:-"51821"}
 
 key_ids=(
-  "yandex_wg_client"
-  "yandex_wg_transit"
-  "racknerd_wg_transit"
+  "entry_split_wg_client"
+  "entry_split_wg_transit"
+  "exit_wg_transit"
   "initial_client"
 )
 
 key_labels=(
-  "Yandex wg-client"
-  "Yandex wg-transit"
-  "Racknerd wg-transit"
+  "entry wg-client"
+  "entry wg-transit"
+  "exit wg-transit"
   "initial client"
 )
 
@@ -296,22 +296,22 @@ write_public_vars() {
     printf 'wireguard_client_network: "10.60.0.0/24"\n'
     printf 'wireguard_client_interface: "wg-client"\n'
     printf 'wireguard_transit_interface: "wg-transit"\n'
-    printf 'wireguard_yandex_wg_client_address: "10.60.0.1/24"\n'
-    printf 'wireguard_yandex_wg_transit_address: "10.70.0.1/30"\n'
-    printf 'wireguard_racknerd_wg_transit_address: "10.70.0.2/30"\n'
+    printf 'wireguard_entry_split_wg_client_address: "10.60.0.1/24"\n'
+    printf 'wireguard_entry_split_wg_transit_address: "10.70.0.1/30"\n'
+    printf 'wireguard_exit_wg_transit_address: "10.70.0.2/30"\n'
     printf 'wireguard_initial_client_address: "10.60.0.10/32"\n'
     printf 'wireguard_initial_client_dns: "10.60.0.1"\n'
     printf 'wireguard_client_allowed_ips: "0.0.0.0/0"\n'
-    printf 'wireguard_yandex_client_endpoint_host: %s\n' "$(yaml_dquote "$client_endpoint_host")"
-    printf 'wireguard_yandex_client_endpoint_port: %s\n' "$(yaml_dquote "$client_endpoint_port")"
+    printf 'wireguard_entry_split_client_endpoint_host: %s\n' "$(yaml_dquote "$client_endpoint_host")"
+    printf 'wireguard_entry_split_client_endpoint_port: %s\n' "$(yaml_dquote "$client_endpoint_port")"
     printf 'wireguard_transit_endpoint_port: %s\n' "$(yaml_dquote "$transit_endpoint_port")"
     printf '%s\n' ''
-    printf 'wireguard_yandex_wg_client_private_key_path: %s\n' "$(yaml_dquote "$(private_path_for yandex_wg_client)")"
-    printf 'wireguard_yandex_wg_client_public_key: %s\n' "$(yaml_dquote "$(read_public_key yandex_wg_client)")"
-    printf 'wireguard_yandex_wg_transit_private_key_path: %s\n' "$(yaml_dquote "$(private_path_for yandex_wg_transit)")"
-    printf 'wireguard_yandex_wg_transit_public_key: %s\n' "$(yaml_dquote "$(read_public_key yandex_wg_transit)")"
-    printf 'wireguard_racknerd_wg_transit_private_key_path: %s\n' "$(yaml_dquote "$(private_path_for racknerd_wg_transit)")"
-    printf 'wireguard_racknerd_wg_transit_public_key: %s\n' "$(yaml_dquote "$(read_public_key racknerd_wg_transit)")"
+    printf 'wireguard_entry_split_wg_client_private_key_path: %s\n' "$(yaml_dquote "$(private_path_for entry_split_wg_client)")"
+    printf 'wireguard_entry_split_wg_client_public_key: %s\n' "$(yaml_dquote "$(read_public_key entry_split_wg_client)")"
+    printf 'wireguard_entry_split_wg_transit_private_key_path: %s\n' "$(yaml_dquote "$(private_path_for entry_split_wg_transit)")"
+    printf 'wireguard_entry_split_wg_transit_public_key: %s\n' "$(yaml_dquote "$(read_public_key entry_split_wg_transit)")"
+    printf 'wireguard_exit_wg_transit_private_key_path: %s\n' "$(yaml_dquote "$(private_path_for exit_wg_transit)")"
+    printf 'wireguard_exit_wg_transit_public_key: %s\n' "$(yaml_dquote "$(read_public_key exit_wg_transit)")"
     printf 'wireguard_initial_client_private_key_path: %s\n' "$(yaml_dquote "$(private_path_for initial_client)")"
     printf 'wireguard_initial_client_public_key: %s\n' "$(yaml_dquote "$(read_public_key initial_client)")"
   } > "$tmp_file"

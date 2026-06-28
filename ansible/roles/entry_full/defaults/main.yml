@@ -1,0 +1,26 @@
+---
+entry_full_wg_client_interface: wg0
+entry_full_wg_client_address: 10.80.0.1/24
+entry_full_wg_client_listen_port: 51944
+entry_full_wg_client_private_key: ""
+entry_full_wg_client_private_key_path: ""
+entry_full_wg_client_peers: []
+
+entry_full_wg_transit_interface: wg-transit
+entry_full_wg_transit_address: 10.91.0.1/32
+entry_full_wg_transit_listen_port: 51945
+entry_full_wg_transit_private_key: ""
+entry_full_wg_transit_private_key_path: ""
+
+entry_full_exit_public_key: ""
+entry_full_exit_endpoint: "172.245.154.109:51946"
+entry_full_exit_allowed_ips:
+  - "0.0.0.0/0"
+entry_full_exit_persistent_keepalive: 25
+entry_full_exit_transit_address: "10.91.0.2/32"
+
+entry_full_client_cidr: 10.80.0.0/24
+entry_full_public_interface: eth0
+entry_full_policy_table: 210
+entry_full_policy_rule_priority: 210
+entry_full_nftables_conf: /etc/nftables.conf

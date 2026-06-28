@@ -1,0 +1,29 @@
+# Reference deployment: Yandex Cloud entry nodes + Racknerd exit.
+# This is the live environment used during development.
+
+profiles:
+  split:
+    description: Split-routing entry (Yandex Cloud, ru-central1-a)
+    ssh_user: deploy
+    ssh_host: 51.250.14.221
+    ssh_key: ~/.ssh/yc_vm_ed25519
+    interface: wg-client
+    server_public_key: r60v53+kdJXZbhnjz3HhQYk7xkV/5c/0GC36Hhu+928=
+    endpoint_host: 51.250.14.221
+    endpoint_port: 53774
+    network: 10.60.0.0/24
+    default_dns: 10.60.0.1
+    default_mtu: 1280
+
+  full:
+    description: Full-exit entry (Yandex Cloud, ru-central1-a)
+    ssh_user: yc-user
+    ssh_host: 89.169.158.239
+    ssh_key: ~/.ssh/yc_vm_ed25519
+    interface: wg0
+    server_public_key: oJNSZc6LQUqbQV3VRgUVg7FgaeiIrs4yf4iqwNGbqho=
+    endpoint_host: 89.169.158.239
+    endpoint_port: 51944
+    network: 10.80.0.0/24
+    default_dns: 1.1.1.1
+    default_mtu: 1280

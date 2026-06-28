@@ -1,0 +1,52 @@
+---
+entry_split_wg_client_interface: wg-client
+entry_split_wg_client_address: 10.60.0.1/24
+entry_split_wg_client_listen_port: 53774
+
+entry_split_wg_transit_interface: wg-transit
+entry_split_wg_transit_address: 10.70.0.1/30
+entry_split_wg_transit_listen_port: 51821
+
+# Provide private key values through Ansible Vault/extra-vars or paths outside
+# the repository. Do not commit private keys.
+entry_split_wg_client_private_key: ""
+entry_split_wg_client_private_key_path: ""
+entry_split_wg_transit_private_key: ""
+entry_split_wg_transit_private_key_path: ""
+
+entry_split_wg_client_peers: []
+
+entry_split_exit_wg_transit_public_key: ""
+entry_split_exit_wg_transit_endpoint: "172.245.154.109:{{ entry_split_wg_transit_listen_port }}"
+entry_split_exit_allowed_ips:
+  - 0.0.0.0/0
+entry_split_exit_persistent_keepalive: 25
+
+entry_split_client_cidr: 10.60.0.0/24
+entry_split_public_interface: eth0
+entry_split_policy_table: 200
+entry_split_policy_rule_priority: 200
+entry_split_policy_fwmark: "0x2"
+entry_split_nftables_fragment: /etc/nftables.d/entry_split.nft
+
+entry_split_dns_enabled: true
+entry_split_dns_interface: "{{ entry_split_wg_client_interface }}"
+entry_split_dns_listen_address: "10.60.0.1"
+entry_split_dns_upstreams:
+  - "10.128.0.2"
+  - "1.1.1.1"
+
+# Provide either a list directly or a controller-local file with one CIDR per
+# line. The live first entry node uses a populated ru4 set for split routing.
+entry_split_ru_ipv4_cidrs: []
+entry_split_ru_ipv4_cidrs_file: ""
+
+entry_split_bypass_ipv4_cidrs:
+  - 10.0.0.0/8
+  - 100.64.0.0/10
+  - 127.0.0.0/8
+  - 169.254.0.0/16
+  - 172.16.0.0/12
+  - 192.168.0.0/16
+  - 224.0.0.0/4
+  - 172.245.154.109/32

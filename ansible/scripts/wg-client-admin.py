@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manage WireGuard clients for the vpn-gen Yandex entry nodes.
+"""Manage WireGuard clients for cascade VPN entry nodes.
 
 The script runs on the Mac/controller. It keeps client private keys and a small
 registry outside the repository, then syncs peers to the remote WireGuard
@@ -27,41 +27,64 @@ STATE_DIR = Path(os.environ.get("VPN_GEN_CLIENT_ADMIN_DIR", "~/.config/vpn-gen/w
 REGISTRY_PATH = STATE_DIR / "clients.json"
 EXPORT_DIR = Path(os.environ.get("VPN_GEN_CLIENT_EXPORT_DIR", "~/Downloads")).expanduser()
 
-MANAGED_BEGIN = "# wg-client-admin: begin"
-MANAGED_END = "# wg-client-admin: end"
+class CommandError(RuntimeError):
+    pass
 
-PROFILES: dict[str, dict[str, Any]] = {
-    "primary": {
-        "description": "Primary Yandex split-routing edge",
-        "ssh_user": "deploy",
-        "ssh_host": "51.250.14.221",
-        "ssh_key": "~/.ssh/yc_vm_ed25519",
-        "interface": "wg-client",
-        "server_public_key": "r60v53+kdJXZbhnjz3HhQYk7xkV/5c/0GC36Hhu+928=",
-        "endpoint_host": "51.250.14.221",
-        "endpoint_port": 53774,
-        "network": "10.60.0.0/24",
-        "default_dns": "10.60.0.1",
-        "default_mtu": 1280,
-    },
-    "direct": {
-        "description": "Secondary Yandex direct edge",
-        "ssh_user": "yc-user",
-        "ssh_host": "89.169.158.239",
-        "ssh_key": "~/.ssh/yc_vm_ed25519",
-        "interface": "wg0",
-        "server_public_key": "oJNSZc6LQUqbQV3VRgUVg7FgaeiIrs4yf4iqwNGbqho=",
-        "endpoint_host": "89.169.158.239",
-        "endpoint_port": 51944,
-        "network": "10.80.0.0/24",
-        "default_dns": "1.1.1.1",
-        "default_mtu": 1280,
-    },
+
+PROFILE_ALIASES = {
+    "primary": "split",
+    "direct": "full",
 }
 
 
-class CommandError(RuntimeError):
-    pass
+def default_profiles_path() -> Path:
+    env_path = os.environ.get("VPN_GEN_WG_CLIENT_PROFILES")
+    if env_path:
+        return Path(env_path).expanduser()
+    deployment = os.environ.get("VPN_GEN_DEPLOYMENT", "yandex-racknerd")
+    script_dir = Path(__file__).resolve().parent
+    json_path = script_dir.parent / "deployments" / deployment / "client-profiles.json"
+    if json_path.exists():
+        return json_path
+    return script_dir.parent / "deployments" / deployment / "client-profiles.yml"
+
+
+def load_profiles() -> dict[str, dict[str, Any]]:
+    path = default_profiles_path()
+    if not path.exists():
+        raise CommandError(
+            f"client profiles file not found: {path}. "
+            "Copy deployments/reference/client-profiles.json into your deployment "
+            "or set VPN_GEN_WG_CLIENT_PROFILES."
+        )
+
+    text = path.read_text(encoding="utf-8")
+    if path.suffix == ".json":
+        data = json.loads(text)
+    else:
+        try:
+            import yaml  # type: ignore
+        except ImportError as exc:
+            raise CommandError(
+                f"YAML profiles require PyYAML, or use JSON: {path.with_suffix('.json')}"
+            ) from exc
+        data = yaml.safe_load(text)
+
+    profiles = data.get("profiles") if isinstance(data, dict) else None
+    if not isinstance(profiles, dict) or not profiles:
+        raise CommandError(f"profiles file must contain a non-empty 'profiles' map: {path}")
+    return profiles
+
+
+PROFILES: dict[str, dict[str, Any]] = load_profiles()
+
+
+def profile_choices() -> list[str]:
+    return sorted(set(PROFILES) | set(PROFILE_ALIASES))
+
+
+MANAGED_BEGIN = "# wg-client-admin: begin"
+MANAGED_END = "# wg-client-admin: end"
 
 
 @dataclass(frozen=True)
@@ -81,9 +104,12 @@ class Profile:
 
     @classmethod
     def from_name(cls, name: str) -> "Profile":
-        raw = PROFILES[name]
+        resolved = PROFILE_ALIASES.get(name, name)
+        if resolved not in PROFILES:
+            raise CommandError(f"unknown profile: {name}")
+        raw = PROFILES[resolved]
         return cls(
-            name=name,
+            name=resolved,
             description=raw["description"],
             ssh_user=raw["ssh_user"],
             ssh_host=raw["ssh_host"],
@@ -458,13 +484,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("profiles", help="List managed server profiles").set_defaults(func=command_profiles)
 
     list_p = sub.add_parser("list", help="List managed clients")
-    list_p.add_argument("--profile", choices=sorted(PROFILES))
+    list_p.add_argument("--profile", choices=profile_choices())
     list_p.add_argument("--remote", action="store_true", help="Also show remote wg state")
     list_p.set_defaults(func=command_list)
 
     add_p = sub.add_parser("add", help="Add a new client and sync it to the server")
     add_p.add_argument("name")
-    add_p.add_argument("--profile", choices=sorted(PROFILES), default="primary")
+    add_p.add_argument("--profile", choices=profile_choices(), default="split")
     add_p.add_argument("--address", help="Client address, e.g. 10.60.0.20/32")
     add_p.add_argument("--dns")
     add_p.add_argument("--mtu", type=int)
@@ -475,7 +501,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     edit_p = sub.add_parser("edit", help="Edit client metadata and resync")
     edit_p.add_argument("name")
-    edit_p.add_argument("--profile", choices=sorted(PROFILES), default="primary")
+    edit_p.add_argument("--profile", choices=profile_choices(), default="split")
     edit_p.add_argument("--address")
     edit_p.add_argument("--dns")
     edit_p.add_argument("--mtu", type=int)
@@ -485,33 +511,33 @@ def build_parser() -> argparse.ArgumentParser:
 
     disable_p = sub.add_parser("disable", help="Disable a client on the remote server")
     disable_p.add_argument("name")
-    disable_p.add_argument("--profile", choices=sorted(PROFILES), default="primary")
+    disable_p.add_argument("--profile", choices=profile_choices(), default="split")
     disable_p.set_defaults(func=lambda args: command_set_enabled(args, False))
 
     enable_p = sub.add_parser("enable", help="Re-enable a managed client")
     enable_p.add_argument("name")
-    enable_p.add_argument("--profile", choices=sorted(PROFILES), default="primary")
+    enable_p.add_argument("--profile", choices=profile_choices(), default="split")
     enable_p.set_defaults(func=lambda args: command_set_enabled(args, True))
 
     export_p = sub.add_parser("export", help="Write client config")
     export_p.add_argument("name")
-    export_p.add_argument("--profile", choices=sorted(PROFILES), default="primary")
+    export_p.add_argument("--profile", choices=profile_choices(), default="split")
     export_p.add_argument("--output")
     export_p.set_defaults(func=command_export)
 
     qr_p = sub.add_parser("qr", help="Generate a QR PNG for a client")
     qr_p.add_argument("name")
-    qr_p.add_argument("--profile", choices=sorted(PROFILES), default="primary")
+    qr_p.add_argument("--profile", choices=profile_choices(), default="split")
     qr_p.add_argument("--output")
     qr_p.set_defaults(func=command_qr)
 
     show_p = sub.add_parser("show-config", help="Print client config to stdout")
     show_p.add_argument("name")
-    show_p.add_argument("--profile", choices=sorted(PROFILES), default="primary")
+    show_p.add_argument("--profile", choices=profile_choices(), default="split")
     show_p.set_defaults(func=command_show_config)
 
     sync_p = sub.add_parser("sync", help="Resync managed clients to remote servers")
-    sync_p.add_argument("--profile", choices=sorted(PROFILES))
+    sync_p.add_argument("--profile", choices=profile_choices())
     sync_p.set_defaults(func=command_sync)
 
     return parser

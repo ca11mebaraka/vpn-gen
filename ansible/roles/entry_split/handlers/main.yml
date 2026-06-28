@@ -1,0 +1,30 @@
+---
+- name: Restart entry WireGuard client
+  ansible.builtin.service:
+    name: "wg-quick@{{ entry_split_wg_client_interface }}"
+    enabled: true
+    state: restarted
+
+- name: Restart entry WireGuard transit
+  ansible.builtin.service:
+    name: "wg-quick@{{ entry_split_wg_transit_interface }}"
+    enabled: true
+    state: restarted
+
+- name: Validate nftables before reload
+  ansible.builtin.command: nft -c -f /etc/nftables.conf
+  changed_when: false
+  listen: Reload nftables
+
+- name: Reload nftables service
+  ansible.builtin.service:
+    name: nftables
+    state: reloaded
+  listen: Reload nftables
+
+- name: Restart dnsmasq
+  ansible.builtin.service:
+    name: dnsmasq
+    enabled: true
+    state: restarted
+  when: not ansible_check_mode

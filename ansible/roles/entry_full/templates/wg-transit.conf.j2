@@ -1,0 +1,17 @@
+[Interface]
+Address = {{ entry_full_wg_transit_address }}
+ListenPort = {{ entry_full_wg_transit_listen_port }}
+PrivateKey = {{ entry_full_wg_transit_private_key_resolved }}
+Table = off
+PostUp = ip rule add from {{ entry_full_client_cidr }} table {{ entry_full_policy_table }} priority {{ entry_full_policy_rule_priority }} 2>/dev/null || true
+PostUp = ip route replace default dev %i table {{ entry_full_policy_table }}
+PostUp = ip route replace {{ entry_full_exit_transit_address }} dev %i
+PostDown = ip route del {{ entry_full_exit_transit_address }} dev %i 2>/dev/null || true
+PostDown = ip route del default dev %i table {{ entry_full_policy_table }} 2>/dev/null || true
+PostDown = ip rule del from {{ entry_full_client_cidr }} table {{ entry_full_policy_table }} priority {{ entry_full_policy_rule_priority }} 2>/dev/null || true
+
+[Peer]
+PublicKey = {{ entry_full_exit_public_key }}
+Endpoint = {{ entry_full_exit_endpoint }}
+AllowedIPs = {{ entry_full_exit_allowed_ips | join(', ') }}
+PersistentKeepalive = {{ entry_full_exit_persistent_keepalive }}

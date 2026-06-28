@@ -1,0 +1,6 @@
+---
+- name: Configure full-exit entry WireGuard edge
+  hosts: entry_full
+  gather_facts: true
+  roles:
+    - role: ../roles/entry_full

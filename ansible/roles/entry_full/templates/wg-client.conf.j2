@@ -1,0 +1,14 @@
+[Interface]
+Address = {{ entry_full_wg_client_address }}
+ListenPort = {{ entry_full_wg_client_listen_port }}
+PrivateKey = {{ entry_full_wg_client_private_key_resolved }}
+
+{% for peer in entry_full_wg_client_peers %}
+[Peer]
+PublicKey = {{ peer.public_key }}
+AllowedIPs = {{ peer.allowed_ips | join(', ') }}
+{% if peer.persistent_keepalive is defined %}
+PersistentKeepalive = {{ peer.persistent_keepalive }}
+{% endif %}
+
+{% endfor %}

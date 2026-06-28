@@ -1,8 +1,0 @@
-[Interface]
-Address = {{ racknerd_exit_wg_transit_address }}
-ListenPort = {{ racknerd_exit_wg_transit_listen_port }}
-PrivateKey = {{ racknerd_exit_wg_transit_private_key_resolved }}
-
-[Peer]
-PublicKey = {{ racknerd_exit_yandex_wg_transit_public_key }}
-AllowedIPs = {{ racknerd_exit_yandex_allowed_ips | join(', ') }}

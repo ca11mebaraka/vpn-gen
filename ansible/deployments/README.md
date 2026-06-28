@@ -1,0 +1,40 @@
+# Деплойments (конкретные установки)
+
+Здесь лежат **значения, специфичные для окружения**. Роли и плейбуки Ansible в родительском каталоге не привязаны к провайдеру; только файлы здесь и `inventory/host_vars/` описывают конкретную установку.
+
+## Структура
+
+```
+deployments/
+├── reference/              # Шаблон с placeholder-значениями
+│   └── client-profiles.json
+└── yandex-racknerd/        # Живой reference-деплой (частный случай)
+    ├── README.md
+    └── client-profiles.json
+```
+
+## Новый деплой
+
+1. Скопируйте `reference/client-profiles.json` в `deployments/<ваше-имя>/client-profiles.json`.
+2. Отредактируйте `inventory/hosts.yml` (`entry_split_01`, `entry_full_01`, `exit_01`).
+3. Заполните `inventory/host_vars/*.yml` — IP, SSH, пути к ключам.
+4. Создайте ключи серверов: `./scripts/wg-secrets-init.sh`.
+5. Укажите деплой для управления клиентами:
+
+```sh
+export VPN_GEN_DEPLOYMENT=<ваше-имя>
+# или явно:
+export VPN_GEN_WG_CLIENT_PROFILES="$PWD/deployments/<ваше-имя>/client-profiles.json"
+```
+
+6. Примените плейбуки по порядку (см. [README](../README.md)).
+
+## Модель
+
+| Концепция | Смысл |
+|-----------|--------|
+| **entry_split** | Пользователь подключается сюда; «свой» трафик выходит локально, остальной — на **exit** |
+| **entry_full** | Пользователь подключается сюда; весь трафик идёт на **exit** |
+| **exit** | Принимает зашифрованный transit от entry и делает NAT в интернет |
+
+Имена провайдеров (Yandex Cloud, Racknerd, AWS, Hetzner, …) допустимы только в README деплоя, не в ролях и общих docs.

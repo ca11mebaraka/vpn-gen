@@ -1,0 +1,6 @@
+---
+- name: Configure entry WireGuard edge
+  hosts: entry_split
+  gather_facts: true
+  roles:
+    - role: ../roles/entry_split

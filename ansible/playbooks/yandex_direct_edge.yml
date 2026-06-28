@@ -1,6 +1,0 @@
----
-- name: Configure direct Yandex WireGuard edge
-  hosts: yandex_direct
-  gather_facts: true
-  roles:
-    - role: ../roles/yandex_direct_edge

@@ -1,0 +1,20 @@
+table inet exit {
+  chain input {
+    type filter hook input priority filter; policy accept;
+
+    udp dport {{ exit_wg_transit_listen_port }} counter accept
+  }
+
+  chain forward {
+    type filter hook forward priority filter; policy accept;
+
+    iifname "{{ exit_wg_transit_interface }}" oifname "{{ exit_public_interface }}" ip saddr {{ exit_client_cidr }} counter accept
+    iifname "{{ exit_public_interface }}" oifname "{{ exit_wg_transit_interface }}" ip daddr {{ exit_client_cidr }} ct state established,related counter accept
+  }
+
+  chain postrouting {
+    type nat hook postrouting priority srcnat; policy accept;
+
+    oifname "{{ exit_public_interface }}" ip saddr {{ exit_client_cidr }} counter masquerade
+  }
+}

@@ -1,0 +1,92 @@
+---
+- name: Validate entry full edge inputs
+  ansible.builtin.assert:
+    that:
+      - entry_full_exit_public_key | length > 0
+      - >
+        (entry_full_wg_client_private_key | length > 0) or
+        (entry_full_wg_client_private_key_path | length > 0)
+      - >
+        (entry_full_wg_transit_private_key | length > 0) or
+        (entry_full_wg_transit_private_key_path | length > 0)
+    fail_msg: >-
+      Define entry_full_exit_public_key and provide direct entry
+      client/transit private keys via Vault/extra-vars or *_private_key_path
+      values outside git.
+
+- name: Resolve entry full client private key
+  ansible.builtin.set_fact:
+    entry_full_wg_client_private_key_resolved: >-
+      {{
+        (entry_full_wg_client_private_key | trim)
+        if entry_full_wg_client_private_key | length > 0
+        else (lookup('ansible.builtin.file', entry_full_wg_client_private_key_path) | trim)
+      }}
+  no_log: true
+
+- name: Resolve entry full transit private key
+  ansible.builtin.set_fact:
+    entry_full_wg_transit_private_key_resolved: >-
+      {{
+        (entry_full_wg_transit_private_key | trim)
+        if entry_full_wg_transit_private_key | length > 0
+        else (lookup('ansible.builtin.file', entry_full_wg_transit_private_key_path) | trim)
+      }}
+  no_log: true
+
+- name: Ensure WireGuard configuration directory exists
+  ansible.builtin.file:
+    path: /etc/wireguard
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Register entry full policy table name
+  ansible.builtin.lineinfile:
+    path: /etc/iproute2/rt_tables
+    regexp: "^{{ entry_full_policy_table }}\\s+"
+    line: "{{ entry_full_policy_table }} wg_direct"
+    create: false
+
+- name: Render entry full client config
+  ansible.builtin.template:
+    src: wg-client.conf.j2
+    dest: "/etc/wireguard/{{ entry_full_wg_client_interface }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart entry full client
+  no_log: true
+
+- name: Render entry full transit config
+  ansible.builtin.template:
+    src: wg-transit.conf.j2
+    dest: "/etc/wireguard/{{ entry_full_wg_transit_interface }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart entry full transit
+  no_log: true
+
+- name: Render entry full nftables configuration
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: "{{ entry_full_nftables_conf }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "nft -c -f %s"
+  notify: Reload nftables
+
+- name: Enable entry full client service
+  ansible.builtin.service:
+    name: "wg-quick@{{ entry_full_wg_client_interface }}"
+    enabled: true
+    state: started
+
+- name: Enable entry full transit service
+  ansible.builtin.service:
+    name: "wg-quick@{{ entry_full_wg_transit_interface }}"
+    enabled: true
+    state: started

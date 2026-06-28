@@ -1,0 +1,132 @@
+---
+- name: Validate Exit node inputs
+  ansible.builtin.assert:
+    that:
+      - exit_entry_split_wg_transit_public_key | length > 0
+      - >
+        (exit_wg_transit_private_key | length > 0) or
+        (exit_wg_transit_private_key_path | length > 0)
+      - >
+        (not exit_entry_full_enabled) or
+        (exit_entry_full_public_key | length > 0)
+      - >
+        (not exit_entry_full_enabled) or
+        (exit_entry_full_wg_private_key | length > 0) or
+        (exit_entry_full_wg_private_key_path | length > 0)
+    fail_msg: >-
+      Define exit transit public keys and provide exit private keys
+      via Vault/extra-vars or *_private_key_path values outside git.
+
+- name: Use provided exit transit private key
+  ansible.builtin.set_fact:
+    exit_wg_transit_private_key_resolved: "{{ exit_wg_transit_private_key | trim }}"
+  when: exit_wg_transit_private_key | length > 0
+  no_log: true
+
+- name: Load exit transit private key from external path
+  ansible.builtin.set_fact:
+    exit_wg_transit_private_key_resolved: >-
+      {{ lookup('ansible.builtin.file', exit_wg_transit_private_key_path) | trim }}
+  when: exit_wg_transit_private_key | length == 0
+  no_log: true
+
+- name: Resolve exit exit-full private key
+  ansible.builtin.set_fact:
+    exit_entry_full_wg_private_key_resolved: >-
+      {{
+        (exit_entry_full_wg_private_key | trim)
+        if exit_entry_full_wg_private_key | length > 0
+        else (lookup('ansible.builtin.file', exit_entry_full_wg_private_key_path) | trim)
+      }}
+  when: exit_entry_full_enabled
+  no_log: true
+
+- name: Ensure WireGuard configuration directory exists
+  ansible.builtin.file:
+    path: /etc/wireguard
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Render exit WireGuard transit config
+  ansible.builtin.template:
+    src: wg-transit.conf.j2
+    dest: "/etc/wireguard/{{ exit_wg_transit_interface }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart exit WireGuard transit
+  no_log: true
+
+- name: Render exit exit-full WireGuard config
+  ansible.builtin.template:
+    src: wg-exit-full.conf.j2
+    dest: "/etc/wireguard/{{ exit_entry_full_wg_interface }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart exit exit-full WireGuard
+  when: exit_entry_full_enabled
+  no_log: true
+
+- name: Ensure nftables include directory exists
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render exit nftables fragment
+  ansible.builtin.template:
+    src: exit_split.nft.j2
+    dest: "{{ exit_nftables_fragment }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "nft -c -f %s"
+  notify: Reload nftables
+
+- name: Render exit exit-full nftables fragment
+  ansible.builtin.template:
+    src: exit_full.nft.j2
+    dest: "{{ exit_entry_full_nftables_fragment }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "nft -c -f %s"
+  notify: Reload nftables
+  when: exit_entry_full_enabled
+
+- name: Include exit nftables fragment
+  ansible.builtin.lineinfile:
+    path: /etc/nftables.conf
+    line: 'include "{{ exit_nftables_fragment }}"'
+    create: false
+    backup: true
+  notify: Reload nftables
+
+- name: Include exit exit-full nftables fragment
+  ansible.builtin.lineinfile:
+    path: /etc/nftables.conf
+    line: 'include "{{ exit_entry_full_nftables_fragment }}"'
+    create: false
+    backup: true
+  notify: Reload nftables
+  when: exit_entry_full_enabled
+
+- name: Enable exit WireGuard transit service
+  ansible.builtin.service:
+    name: "wg-quick@{{ exit_wg_transit_interface }}"
+    enabled: true
+    state: started
+
+- name: Enable exit exit-full WireGuard service
+  ansible.builtin.service:
+    name: "wg-quick@{{ exit_entry_full_wg_interface }}"
+    enabled: true
+    state: started
+  when:
+    - exit_entry_full_enabled
+    - not ansible_check_mode
