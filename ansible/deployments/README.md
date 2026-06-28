@@ -16,10 +16,11 @@ deployments/
 ## Новый деплой
 
 1. Скопируйте `reference/client-profiles.json` в `deployments/<ваше-имя>/client-profiles.json`.
-2. Отредактируйте `inventory/hosts.yml` (`entry_split_01`, `entry_full_01`, `exit_01`).
-3. Заполните `inventory/host_vars/*.yml` — IP, SSH, пути к ключам.
-4. Создайте ключи серверов: `./scripts/wg-secrets-init.sh`.
-5. Укажите деплой для управления клиентами:
+2. Отредактируйте `ansible/.env` — IP и SSH (шаблон `.env.example`; для Yandex+Racknerd см. `deployments/yandex-racknerd/.env.example`).
+3. Проверка без SSH: `ansible-playbook playbooks/verify_env.yml`.
+4. Заполните `inventory/host_vars/*.yml` — публичные ключи WireGuard и peers (не пути `/Users/.../`).
+5. Создайте ключи серверов: `./scripts/wg-secrets-init.sh`.
+6. Укажите деплой для управления клиентами:
 
 ```sh
 export VPN_GEN_DEPLOYMENT=<ваше-имя>
@@ -27,7 +28,7 @@ export VPN_GEN_DEPLOYMENT=<ваше-имя>
 export VPN_GEN_WG_CLIENT_PROFILES="$PWD/deployments/<ваше-имя>/client-profiles.json"
 ```
 
-6. Примените плейбуки по порядку (см. [README](../README.md)).
+7. Примените плейбуки по порядку (см. [README](../README.md)).
 
 ## Модель
 

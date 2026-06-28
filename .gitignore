@@ -35,3 +35,8 @@ __pycache__/
 # Editor
 .vscode/
 .idea/
+
+# Local environment (IPs, SSH keys, paths)
+.env
+ansible/.env
+ansible/deployments/*/.env

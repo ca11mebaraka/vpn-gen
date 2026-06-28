@@ -1,0 +1,72 @@
+---
+- name: Verify controller environment and inventory (no SSH)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    vpn_gen_required_env:
+      - VPN_GEN_ENTRY_SPLIT_HOST
+      - VPN_GEN_EXIT_HOST
+    vpn_gen_optional_env:
+      - VPN_GEN_ENTRY_FULL_HOST
+      - VPN_GEN_ENTRY_SPLIT_SSH_USER
+      - VPN_GEN_ENTRY_FULL_SSH_USER
+      - VPN_GEN_EXIT_SSH_USER
+      - VPN_GEN_SSH_KEY_ENTRY
+      - VPN_GEN_SSH_KEY_EXIT
+      - VPN_GEN_DEPLOYMENT
+
+  tasks:
+    - name: Require essential environment variables
+      ansible.builtin.assert:
+        that:
+          - lookup('env', item) | length > 0
+        fail_msg: >-
+          Set {{ item }} in ansible/.env (see .env.example).
+          Load with: source scripts/load-env.sh
+      loop: "{{ vpn_gen_required_env }}"
+
+    - name: Show resolved SSH users per host group
+      ansible.builtin.debug:
+        msg:
+          entry_split: "{{ hostvars['entry_split_01'].ansible_user | default('MISSING') }}"
+          entry_full: "{{ hostvars['entry_full_01'].ansible_user | default('MISSING') }}"
+          exit: "{{ hostvars['exit_01'].ansible_user | default('MISSING') }}"
+
+    - name: Assert entry_split SSH user is configured
+      ansible.builtin.assert:
+        that:
+          - hostvars['entry_split_01'].ansible_user | length > 0
+          - hostvars['entry_split_01'].ansible_host | length > 0
+        fail_msg: entry_split_01 has no ansible_user or ansible_host — check .env and inventory/hosts.yml
+
+    - name: Assert exit SSH user is configured
+      ansible.builtin.assert:
+        that:
+          - hostvars['exit_01'].ansible_user | length > 0
+          - hostvars['exit_01'].ansible_host | length > 0
+        fail_msg: exit_01 has no ansible_user or ansible_host — check .env and inventory/hosts.yml
+
+    - name: Assert entry_full is configured when host IP is set
+      ansible.builtin.assert:
+        that:
+          - hostvars['entry_full_01'].ansible_host | length == 0
+            or hostvars['entry_full_01'].ansible_user | length > 0
+        fail_msg: >-
+          VPN_GEN_ENTRY_FULL_HOST is set but entry_full SSH user is empty.
+          Set VPN_GEN_ENTRY_FULL_SSH_USER (default deploy for most VPS providers).
+
+    - name: Show exit full-transit mode
+      ansible.builtin.debug:
+        msg: "exit_entry_full_enabled={{ exit_entry_full_enabled | default(false) }} (set VPN_GEN_EXIT_ENTRY_FULL_ENABLED=true only for split+full+exit)"
+
+    - name: Warn when yandex-specific user is used outside yandex-racknerd deployment
+      ansible.builtin.debug:
+        msg: >-
+          entry_full uses SSH user '{{ hostvars['entry_full_01'].ansible_user }}'.
+          Cloud-default users (e.g. yc-user) belong in deployments/yandex-racknerd/.env,
+          not in the generic .env.example.
+      when:
+        - hostvars['entry_full_01'].ansible_user != 'deploy'
+        - lookup('env', 'VPN_GEN_DEPLOYMENT') | default('reference', true) != 'yandex-racknerd'

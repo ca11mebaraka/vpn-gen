@@ -17,7 +17,7 @@ entry_split_wg_transit_private_key_path: ""
 entry_split_wg_client_peers: []
 
 entry_split_exit_wg_transit_public_key: ""
-entry_split_exit_wg_transit_endpoint: "172.245.154.109:{{ entry_split_wg_transit_listen_port }}"
+entry_split_exit_wg_transit_endpoint: ""
 entry_split_exit_allowed_ips:
   - 0.0.0.0/0
 entry_split_exit_persistent_keepalive: 25
@@ -49,4 +49,4 @@ entry_split_bypass_ipv4_cidrs:
   - 172.16.0.0/12
   - 192.168.0.0/16
   - 224.0.0.0/4
-  - 172.245.154.109/32
+  - "{{ vpn_gen_exit_host }}/32"

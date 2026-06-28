@@ -1,0 +1,25 @@
+---
+# Пути на Mac/controller. Берутся из env; по умолчанию — $HOME/.config/vpn-gen/...
+
+vpn_gen_home: "{{ lookup('env', 'HOME') }}"
+vpn_gen_config_dir: "{{ lookup('env', 'VPN_GEN_CONFIG_DIR') | default(vpn_gen_home ~ '/.config/vpn-gen', true) }}"
+vpn_gen_wg_secret_dir: "{{ lookup('env', 'VPN_GEN_WG_SECRET_DIR') | default(vpn_gen_config_dir ~ '/wireguard', true) }}"
+vpn_gen_wg_entry_full_secret_dir: "{{ lookup('env', 'VPN_GEN_WG_ENTRY_FULL_SECRET_DIR') | default(vpn_gen_config_dir ~ '/wireguard-entry-full', true) }}"
+vpn_gen_geo_dir: "{{ lookup('env', 'VPN_GEN_GEO_DIR') | default(vpn_gen_config_dir ~ '/geo', true) }}"
+vpn_gen_ru_zone_file: "{{ lookup('env', 'VPN_GEN_RU_ZONE_FILE') | default(vpn_gen_geo_dir ~ '/ru.zone', true) }}"
+
+# Имена legacy-файлов ключей (можно переопределить через env)
+vpn_gen_entry_split_wg_client_key_file: "{{ lookup('env', 'VPN_GEN_ENTRY_SPLIT_WG_CLIENT_KEY_FILE') | default('yandex_wg_client.private.key', true) }}"
+vpn_gen_entry_split_wg_transit_key_file: "{{ lookup('env', 'VPN_GEN_ENTRY_SPLIT_WG_TRANSIT_KEY_FILE') | default('yandex_wg_transit.private.key', true) }}"
+vpn_gen_exit_wg_transit_key_file: "{{ lookup('env', 'VPN_GEN_EXIT_WG_TRANSIT_KEY_FILE') | default('racknerd_wg_transit.private.key', true) }}"
+vpn_gen_entry_full_wg_client_key_file: "{{ lookup('env', 'VPN_GEN_ENTRY_FULL_WG_CLIENT_KEY_FILE') | default('server.private.key', true) }}"
+vpn_gen_entry_full_wg_transit_key_file: "{{ lookup('env', 'VPN_GEN_ENTRY_FULL_WG_TRANSIT_KEY_FILE') | default('yandex_transit.private.key', true) }}"
+vpn_gen_exit_entry_full_wg_key_file: "{{ lookup('env', 'VPN_GEN_EXIT_ENTRY_FULL_WG_KEY_FILE') | default('exit_entry_full_wg.private.key', true) }}"
+
+entry_split_wg_client_private_key_path: "{{ vpn_gen_wg_secret_dir }}/{{ vpn_gen_entry_split_wg_client_key_file }}"
+entry_split_wg_transit_private_key_path: "{{ vpn_gen_wg_secret_dir }}/{{ vpn_gen_entry_split_wg_transit_key_file }}"
+entry_split_ru_ipv4_cidrs_file: "{{ vpn_gen_ru_zone_file }}"
+exit_wg_transit_private_key_path: "{{ vpn_gen_wg_secret_dir }}/{{ vpn_gen_exit_wg_transit_key_file }}"
+entry_full_wg_client_private_key_path: "{{ vpn_gen_wg_entry_full_secret_dir }}/{{ vpn_gen_entry_full_wg_client_key_file }}"
+entry_full_wg_transit_private_key_path: "{{ vpn_gen_wg_entry_full_secret_dir }}/{{ vpn_gen_entry_full_wg_transit_key_file }}"
+exit_entry_full_wg_private_key_path: "{{ vpn_gen_wg_entry_full_secret_dir }}/{{ vpn_gen_exit_entry_full_wg_key_file }}"

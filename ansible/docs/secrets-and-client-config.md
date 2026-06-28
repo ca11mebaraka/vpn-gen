@@ -43,16 +43,27 @@ ansible/scripts/wg-secrets-init.sh --check
 
 Для реальной инициализации нужна утилита `wg` из wireguard-tools. Каталог секретов должен принадлежать текущему пользователю, не быть symlink, права `0700`; приватные ключи — `0600`.
 
-Переопределения через env:
+Переопределения через env (удобнее всего — файл `ansible/.env`, см. [`.env.example`](../.env.example)):
+
+```sh
+cd ansible
+cp .env.example .env
+source scripts/load-env.sh
+ansible/scripts/wg-secrets-init.sh
+```
+
+Ключевые переменные:
 
 ```sh
 VPN_GEN_WG_SECRET_DIR="$HOME/.config/vpn-gen/wireguard"
 VPN_GEN_WG_PUBLIC_VARS_FILE="$HOME/.config/vpn-gen/wireguard/public-vars.yml"
 VPN_GEN_WG_CLIENT_CONFIG_PATH="$HOME/.config/vpn-gen/wireguard/initial-client.conf"
-VPN_GEN_WG_CLIENT_ENDPOINT_HOST="51.250.14.221"
+VPN_GEN_WG_CLIENT_ENDPOINT_HOST="$VPN_GEN_ENTRY_SPLIT_HOST"
 VPN_GEN_WG_CLIENT_ENDPOINT_PORT="53774"
-VPN_GEN_WG_TRANSIT_ENDPOINT_PORT="51821"
+VPN_GEN_EXIT_TRANSIT_PORT="51821"
 ```
+
+Пути в `inventory/host_vars/` строятся из `$HOME/.config/vpn-gen/...` через `group_vars/all/controller.yml` — **не прописывайте** `/Users/<имя>/...` в git.
 
 ## Генерация первого клиентского конфига
 
