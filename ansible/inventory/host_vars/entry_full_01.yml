@@ -1,17 +1,14 @@
-ansible_ssh_private_key_file: ~/.ssh/yc_vm_ed25519
-
 host_notes:
   os: Ubuntu 24.04.4 LTS
   vm_name: entry-full-01
-  public_ip: 89.169.158.239
-  ssh_user: yc-user
-  ssh_key: ~/.ssh/yc_vm_ed25519
+  public_ip: "{{ vpn_gen_entry_full_host }}"
+  ssh_user: "{{ vpn_gen_entry_full_ssh_user }}"
+  ssh_key: "{{ vpn_gen_ssh_key_entry }}"
 
 entry_full_wg_client_interface: wg0
 entry_full_wg_client_address: 10.80.0.1/24
-entry_full_wg_client_listen_port: 51944
+entry_full_wg_client_listen_port: "{{ vpn_gen_entry_full_client_port }}"
 entry_full_client_cidr: 10.80.0.0/24
-entry_full_wg_client_private_key_path: "/Users/nmel/.config/vpn-gen/wireguard-entry-full/server.private.key"
 entry_full_wg_client_peers:
   - name: direct-client
     public_key: "uqLgsAil5pLPf+d7UWRfNSWDfUqE4/TsDX1LZKZgumA="
@@ -21,12 +18,10 @@ entry_full_wg_client_peers:
 entry_full_wg_transit_interface: wg-transit
 entry_full_wg_transit_address: 10.91.0.1/32
 entry_full_wg_transit_listen_port: 51945
-entry_full_wg_transit_private_key_path: "/Users/nmel/.config/vpn-gen/wireguard-entry-full/yandex_transit.private.key"
 entry_full_policy_table: 210
 entry_full_policy_rule_priority: 210
 
 entry_full_exit_public_key: "h1TN7ERqzQ4GpRxhLKMc1RpzV4GX/8kYp2MTUFx78k8="
-entry_full_exit_endpoint: "172.245.154.109:51946"
 entry_full_exit_transit_address: "10.91.0.2/32"
 entry_full_exit_allowed_ips:
   - "0.0.0.0/0"

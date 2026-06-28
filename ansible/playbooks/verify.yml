@@ -10,15 +10,24 @@
       changed_when: false
       register: whoami_result
 
+    - name: Assert connected as configured ansible_user
+      ansible.builtin.assert:
+        that:
+          - whoami_result.stdout == ansible_user
+        fail_msg: >-
+          Connected as '{{ whoami_result.stdout }}' but inventory expects
+          '{{ ansible_user }}'. Fix VPN_GEN_*_SSH_USER in .env for this host.
+      when: not ansible_check_mode
+
     - name: Check passwordless sudo
       ansible.builtin.command: sudo -n true
       become: false
       changed_when: false
 
-    - name: Check deploy user exists
+    - name: Check configured SSH user exists in passwd database
       ansible.builtin.getent:
         database: passwd
-        key: "{{ deploy_user }}"
+        key: "{{ ansible_user }}"
 
     - name: Show prepared host summary
       ansible.builtin.debug:
@@ -27,4 +36,4 @@
           ansible_host: "{{ ansible_host }}"
           connected_as: "{{ whoami_result.stdout }}"
           distribution: "{{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
-          sudo_nopasswd: "{{ deploy_sudo_nopasswd }}"
+          sudo_nopasswd: "{{ deploy_sudo_nopasswd | default(true) }}"

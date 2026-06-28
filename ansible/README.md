@@ -7,6 +7,41 @@
 **Оглавление документации:** [`docs/README.md`](docs/README.md)  
 **План имён:** [`docs/naming-and-deployment-plan.md`](docs/naming-and-deployment-plan.md)
 
+## Переменные окружения
+
+IP-адреса, SSH-ключи и пути к секретам **не зашиты в репозиторий**. Задаются через файл `ansible/.env` (см. [`.env.example`](.env.example)).
+
+```sh
+cd ansible
+cp .env.example .env
+# отредактируйте .env под свои серверы и пути
+source scripts/load-env.sh
+```
+
+Перед `ansible-playbook`, `wg-secrets-init.sh` и `wg-client` загружайте окружение (`source scripts/load-env.sh` или `set -a; source .env; set +a`).
+
+| Переменная | Назначение |
+|------------|------------|
+| `VPN_GEN_ENTRY_SPLIT_HOST` | IP split entry |
+| `VPN_GEN_ENTRY_FULL_HOST` | IP full entry |
+| `VPN_GEN_EXIT_HOST` | IP exit |
+| `VPN_GEN_SSH_KEY_ENTRY` | приватный SSH-ключ для entry (`~/.ssh/...`) |
+| `VPN_GEN_SSH_KEY_EXIT` | приватный SSH-ключ для exit |
+| `VPN_GEN_WG_SECRET_DIR` | каталог WG-ключей split/exit transit (по умолчанию `$HOME/.config/vpn-gen/wireguard`) |
+| `VPN_GEN_WG_ENTRY_FULL_SECRET_DIR` | каталог ключей full entry |
+| `VPN_GEN_RU_ZONE_FILE` | файл GeoIP для split (`ru.zone`) |
+| `VPN_GEN_DEPLOYMENT` | имя деплоя для `wg-client` (например `reference` или `yandex-racknerd`) |
+| `VPN_GEN_EXIT_ENTRY_FULL_ENABLED` | `true` только если exit обслуживает и split, и full entry (3 узла) |
+
+Универсальный шаблон — [`.env.example`](.env.example) (везде `deploy`). Частный Yandex + Racknerd — [`deployments/yandex-racknerd/.env.example`](deployments/yandex-racknerd/.env.example).
+
+Dry-run сценария для нового пользователя:
+
+```sh
+./scripts/dry-run-user-journey.sh                  # generic VPS (по умолчанию)
+./scripts/dry-run-user-journey.sh --profile yandex-racknerd
+```
+
 ## Быстрый старт, пошаговая инструкция
 
 Инструкция для человека, который впервые разворачивает vpn-gen. Предполагается, что у вас есть **Mac** (управление) и **два виртуальных сервера** в интернете: один ближе к пользователям (вход), второй за рубежом (выход).
@@ -183,33 +218,30 @@ ssh -i ~/.ssh/vpn-gen_ed25519 deploy@51.250.14.221 'hostname; uptime'
 ssh -i ~/.ssh/vpn-gen_ed25519 deploy@172.245.154.109 'hostname; uptime'
 ```
 
-Сохраните для следующего шага:
+Сохраните для следующего шага — в **`ansible/.env`** (не в inventory):
 
-- IP entry и exit → [`inventory/hosts.yml`](inventory/hosts.yml)
-- пользователь SSH (`deploy` или `yc-user`) → `ansible_user` в inventory
-- путь к ключу на Mac → `ansible_ssh_private_key_file` в [`inventory/host_vars/`](inventory/host_vars/)
-
-Пример фрагмента `inventory/host_vars/entry_split_01.yml`:
-
-```yaml
-ansible_ssh_private_key_file: ~/.ssh/vpn-gen_ed25519
-
-host_notes:
-  public_ip: 51.250.14.221
-  ssh_user: deploy
-  ssh_key: ~/.ssh/vpn-gen_ed25519
+```sh
+cp .env.example .env
 ```
 
-Пример для exit в `inventory/host_vars/exit_01.yml`:
+Пример фрагмента `.env`:
 
-```yaml
-ansible_ssh_private_key_file: ~/.ssh/vpn-gen_ed25519
-
-host_notes:
-  public_ip: 172.245.154.109
-  ssh_user: deploy
-  ssh_key: ~/.ssh/vpn-gen_ed25519
+```sh
+VPN_GEN_ENTRY_SPLIT_HOST=203.0.113.10
+VPN_GEN_EXIT_HOST=198.51.100.20
+VPN_GEN_ENTRY_SPLIT_SSH_USER=deploy
+VPN_GEN_EXIT_SSH_USER=deploy
+VPN_GEN_SSH_KEY_ENTRY=~/.ssh/vpn-gen_ed25519
+VPN_GEN_SSH_KEY_EXIT=~/.ssh/vpn-gen_ed25519
 ```
+
+После правок:
+
+```sh
+source scripts/load-env.sh
+```
+
+В `inventory/host_vars/` остаются только **секреты WireGuard** (публичные ключи peers, списки клиентов) — не пути вида `/Users/.../`.
 
 ```mermaid
 flowchart LR
@@ -271,11 +303,20 @@ export VPN_GEN_WG_CLIENT_ENDPOINT_PORT=53774
 
 ### Шаг 6. Проверьте связь с серверами
 
+Сначала **локально** (без SSH) — что `.env` и inventory согласованы:
+
 ```sh
-cd ansible   # если ещё не в каталоге
+ansible-playbook playbooks/verify_env.yml
+```
+
+Затем **на живых серверах** (после шага 2 README — SSH настроен):
+
+```sh
 ansible all -m ping
 ansible-playbook playbooks/verify.yml
 ```
+
+`verify.yml` проверяет пользователя из `ansible_user` (из `VPN_GEN_*_SSH_USER`), а не жёсткий `deploy`. На большинстве VPS везде `deploy`; `yc-user` — только частный случай Yandex Cloud ([`deployments/yandex-racknerd/.env.example`](deployments/yandex-racknerd/.env.example)).
 
 Ожидается `SUCCESS` для каждого хоста.
 
@@ -454,8 +495,9 @@ flowchart TB
 
 | Что делаем | Зачем | Команда |
 |------------|-------|---------|
-| Пинг всех серверов | Проверяем, что Mac «видит» все машины по сети | `ansible all -m ping` |
-| Проверка пользователей | Убеждаемся, что можно зайти и выполнять команды от имени администратора | [`playbooks/verify.yml`](playbooks/verify.yml) |
+| Проверка `.env` и inventory | Без SSH: IP, SSH-пользователи, режим exit | [`playbooks/verify_env.yml`](playbooks/verify_env.yml) |
+| Пинг всех серверов | Mac «видит» машины по сети | `ansible all -m ping` |
+| Проверка SSH-пользователей | Вход под `ansible_user` и sudo без пароля | [`playbooks/verify.yml`](playbooks/verify.yml) |
 
 Проверка одной группы: `ansible entry_split -m ping`, `ansible exit -m ping`
 
@@ -512,9 +554,7 @@ cd ansible
 
 Подробности: [`deployments/yandex-racknerd/README.md`](deployments/yandex-racknerd/README.md).
 
-- `entry_split_01` — split entry, `51.250.14.221`, пользователь `deploy`
-- `entry_full_01` — full entry, `89.169.158.239`, пользователь `yc-user`
-- `exit_01` — exit, `172.245.154.109`, пользователь `deploy`
+Имена хостов в inventory: `entry_split_01`, `entry_full_01`, `exit_01`. IP, SSH-пользователи и ключи — в **`ansible/.env`** (шаблон [`.env.example`](.env.example)).
 
 ## Документация
 

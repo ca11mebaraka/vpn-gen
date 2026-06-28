@@ -13,7 +13,7 @@ entry_full_wg_transit_private_key: ""
 entry_full_wg_transit_private_key_path: ""
 
 entry_full_exit_public_key: ""
-entry_full_exit_endpoint: "172.245.154.109:51946"
+entry_full_exit_endpoint: ""
 entry_full_exit_allowed_ips:
   - "0.0.0.0/0"
 entry_full_exit_persistent_keepalive: 25

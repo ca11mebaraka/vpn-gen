@@ -18,7 +18,12 @@ Environment overrides:
   VPN_GEN_WG_CLIENT_CONFIG_PATH
   VPN_GEN_WG_CLIENT_ENDPOINT_HOST
   VPN_GEN_WG_CLIENT_ENDPOINT_PORT
+  VPN_GEN_ENTRY_SPLIT_HOST
+  VPN_GEN_EXIT_TRANSIT_PORT
   VPN_GEN_WG_TRANSIT_ENDPOINT_PORT
+
+Load from ansible/.env:
+  source scripts/load-env.sh
 
 Modes:
   --dry-run   Print planned actions without creating or changing files.
@@ -106,13 +111,26 @@ if [[ $dry_run -eq 1 && $check_only -eq 1 ]]; then
   die "--dry-run and --check are mutually exclusive"
 fi
 
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+if [[ -f "$script_dir/load-env.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$script_dir/load-env.sh"
+fi
+
 secret_dir=${VPN_GEN_WG_SECRET_DIR:-"$HOME/.config/vpn-gen/wireguard"}
 public_vars_file=${VPN_GEN_WG_PUBLIC_VARS_FILE:-"$secret_dir/public-vars.yml"}
 initial_client_config_path=${VPN_GEN_WG_CLIENT_CONFIG_PATH:-"$secret_dir/initial-client.conf"}
 
-client_endpoint_host=${VPN_GEN_WG_CLIENT_ENDPOINT_HOST:-"51.250.14.221"}
+client_endpoint_host=${VPN_GEN_WG_CLIENT_ENDPOINT_HOST:-${VPN_GEN_ENTRY_SPLIT_HOST:-}}
 client_endpoint_port=${VPN_GEN_WG_CLIENT_ENDPOINT_PORT:-"53774"}
-transit_endpoint_port=${VPN_GEN_WG_TRANSIT_ENDPOINT_PORT:-"51821"}
+transit_endpoint_port=${VPN_GEN_WG_TRANSIT_ENDPOINT_PORT:-${VPN_GEN_EXIT_TRANSIT_PORT:-51821}}
+
+if [[ -z $client_endpoint_host && $check_only -eq 0 && $dry_run -eq 0 ]]; then
+  die "set VPN_GEN_WG_CLIENT_ENDPOINT_HOST or VPN_GEN_ENTRY_SPLIT_HOST (source ansible/.env or scripts/load-env.sh)"
+fi
+if [[ -z $client_endpoint_host ]]; then
+  client_endpoint_host=CHANGE_ME
+fi
 
 key_ids=(
   "entry_split_wg_client"

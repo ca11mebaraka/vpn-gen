@@ -1,17 +1,13 @@
-ansible_ssh_private_key_file: ~/.ssh/yc_vm_ed25519
-
 host_notes:
   os: Ubuntu 24.04.4 LTS
   vm_name: entry-split-01
-  public_ip: 51.250.14.221
-  ssh_user: deploy
-  ssh_key: ~/.ssh/yc_vm_ed25519
+  public_ip: "{{ vpn_gen_entry_split_host }}"
+  ssh_user: "{{ vpn_gen_entry_split_ssh_user }}"
+  ssh_key: "{{ vpn_gen_ssh_key_entry }}"
 
-entry_split_wg_client_private_key_path: "/Users/nmel/.config/vpn-gen/wireguard/yandex_wg_client.private.key"
-entry_split_wg_transit_private_key_path: "/Users/nmel/.config/vpn-gen/wireguard/yandex_wg_transit.private.key"
-entry_split_wg_client_listen_port: 53774
+entry_split_wg_client_listen_port: "{{ vpn_gen_entry_split_client_port }}"
+
 entry_split_exit_wg_transit_public_key: "tHt+xqudJqKDXQIm3pgGDuvre7L3y1WkUKB7m0qgvFw="
-entry_split_exit_wg_transit_endpoint: "172.245.154.109:51821"
 
 entry_split_wg_client_peers:
   - name: initial-client
@@ -22,7 +18,3 @@ entry_split_wg_client_peers:
     public_key: "+zmZ9hoXnScAGVJiZ7aL5XjkP1BG75525fc0tXI220I="
     allowed_ips:
       - "10.60.0.11/32"
-
-# Live split-routing source. The role reads this local controller file and
-# renders it into the nftables ru4 interval set.
-entry_split_ru_ipv4_cidrs_file: "/Users/nmel/.config/vpn-gen/geo/ru.zone"

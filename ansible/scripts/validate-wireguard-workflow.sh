@@ -5,6 +5,16 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 ansible_dir=$(cd -- "$script_dir/.." && pwd)
 ansible_tmp=""
 
+if [[ -f "$script_dir/load-env.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "$script_dir/load-env.sh"
+elif [[ -f "$ansible_dir/.env.example" && ! -f "$ansible_dir/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ansible_dir/.env.example"
+  set +a
+fi
+
 cleanup() {
   if [[ -n "$ansible_tmp" ]]; then
     rm -rf "$ansible_tmp"
@@ -36,6 +46,7 @@ if command -v ansible-playbook >/dev/null 2>&1; then
   export ANSIBLE_REMOTE_TEMP="$ansible_tmp/remote"
   mkdir -p "$ANSIBLE_LOCAL_TEMP" "$ANSIBLE_REMOTE_TEMP"
   run ansible-playbook -i "$ansible_dir/inventory/hosts.yml" "$ansible_dir/playbooks/client_config.yml" --syntax-check
+  run ansible-playbook -i "$ansible_dir/inventory/hosts.yml" "$ansible_dir/playbooks/verify_env.yml" --syntax-check
 else
   printf 'SKIP: ansible-playbook is not installed; skipped client_config.yml syntax check.\n'
 fi
