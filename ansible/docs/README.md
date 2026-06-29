@@ -10,6 +10,7 @@
 | [Тестирование ролей WireGuard](testing-wireguard-roles.md) | Check-mode и live-проверки entry/exit |
 | [Тестирование базовой сети](testing-common-network-base.md) | Роль `common_network_base` |
 | [План оркестрации агентов](agent-orchestration-plan.md) | Пошаговый план автоматизации для агентов/CI |
+| [**ТЗ vpn-gen v2**](v2-development-spec.md) | Задание на чистую версию: без рудиментов, vendor-neutral, work packages |
 
 Деплойments:
 
