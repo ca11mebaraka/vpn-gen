@@ -11,13 +11,18 @@ vpn_gen_ru_zone_file: "{{ lookup('env', 'VPN_GEN_RU_ZONE_FILE') | default(vpn_ge
 # Имена legacy-файлов ключей (можно переопределить через env)
 vpn_gen_entry_split_wg_client_key_file: "{{ lookup('env', 'VPN_GEN_ENTRY_SPLIT_WG_CLIENT_KEY_FILE') | default('yandex_wg_client.private.key', true) }}"
 vpn_gen_entry_split_wg_transit_key_file: "{{ lookup('env', 'VPN_GEN_ENTRY_SPLIT_WG_TRANSIT_KEY_FILE') | default('yandex_wg_transit.private.key', true) }}"
+vpn_gen_entry_split_wg_client_2_key_file: "{{ lookup('env', 'VPN_GEN_ENTRY_SPLIT_WG_CLIENT_2_KEY_FILE') | default('entry_split_wg_client_2.private.key', true) }}"
+vpn_gen_entry_split_wg_transit_2_key_file: "{{ lookup('env', 'VPN_GEN_ENTRY_SPLIT_WG_TRANSIT_2_KEY_FILE') | default('entry_split_wg_transit_2.private.key', true) }}"
 vpn_gen_exit_wg_transit_key_file: "{{ lookup('env', 'VPN_GEN_EXIT_WG_TRANSIT_KEY_FILE') | default('racknerd_wg_transit.private.key', true) }}"
+vpn_gen_exit2_wg_transit_key_file: "{{ lookup('env', 'VPN_GEN_EXIT2_WG_TRANSIT_KEY_FILE') | default('exit2_wg_transit.private.key', true) }}"
 vpn_gen_entry_full_wg_client_key_file: "{{ lookup('env', 'VPN_GEN_ENTRY_FULL_WG_CLIENT_KEY_FILE') | default('server.private.key', true) }}"
 vpn_gen_entry_full_wg_transit_key_file: "{{ lookup('env', 'VPN_GEN_ENTRY_FULL_WG_TRANSIT_KEY_FILE') | default('yandex_transit.private.key', true) }}"
 vpn_gen_exit_entry_full_wg_key_file: "{{ lookup('env', 'VPN_GEN_EXIT_ENTRY_FULL_WG_KEY_FILE') | default('exit_entry_full_wg.private.key', true) }}"
 
 entry_split_wg_client_private_key_path: "{{ vpn_gen_wg_secret_dir }}/{{ vpn_gen_entry_split_wg_client_key_file }}"
 entry_split_wg_transit_private_key_path: "{{ vpn_gen_wg_secret_dir }}/{{ vpn_gen_entry_split_wg_transit_key_file }}"
+entry_split_wg_client_2_private_key_path: "{{ vpn_gen_wg_secret_dir }}/{{ vpn_gen_entry_split_wg_client_2_key_file }}"
+entry_split_wg_transit_2_private_key_path: "{{ vpn_gen_wg_secret_dir }}/{{ vpn_gen_entry_split_wg_transit_2_key_file }}"
 entry_split_ru_ipv4_cidrs_file: "{{ vpn_gen_ru_zone_file }}"
 exit_wg_transit_private_key_path: "{{ vpn_gen_wg_secret_dir }}/{{ vpn_gen_exit_wg_transit_key_file }}"
 entry_full_wg_client_private_key_path: "{{ vpn_gen_wg_entry_full_secret_dir }}/{{ vpn_gen_entry_full_wg_client_key_file }}"

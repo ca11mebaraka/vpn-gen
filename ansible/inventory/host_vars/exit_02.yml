@@ -1,0 +1,18 @@
+host_notes:
+  os: Ubuntu Linux
+  public_ip: "{{ vpn_gen_exit2_host }}"
+  ssh_user: "{{ vpn_gen_exit2_ssh_user }}"
+  ssh_key: "{{ vpn_gen_ssh_key_exit2 }}"
+
+ansible_user: "{{ vpn_gen_exit2_ssh_user }}"
+ansible_ssh_private_key_file: "{{ vpn_gen_ssh_key_exit2 }}"
+
+exit_entry_full_enabled: false
+exit_public_interface: ens3
+exit_wg_transit_address: 10.71.0.2/30
+exit_wg_transit_private_key_path: "{{ vpn_gen_wg_secret_dir }}/exit2_wg_transit.private.key"
+exit_entry_split_wg_transit_public_key: "uXakjSqZTWOkAfk9o1NFrw9Eyz3C5Y+hTyZa5mrxuAA="
+exit_entry_split_allowed_ips:
+  - 10.71.0.1/32
+  - 10.61.0.0/24
+exit_client_cidr: 10.61.0.0/24

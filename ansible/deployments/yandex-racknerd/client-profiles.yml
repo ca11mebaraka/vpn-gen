@@ -3,13 +3,13 @@
 
 profiles:
   split:
-    description: Split-routing entry (Yandex Cloud, ru-central1-a)
-    ssh_user: deploy
-    ssh_host: 51.250.14.221
+    description: Split-routing entry (cloud.ru)
+    ssh_user: user1
+    ssh_host: 176.123.164.26
     ssh_key: ~/.ssh/yc_vm_ed25519
     interface: wg-client
     server_public_key: r60v53+kdJXZbhnjz3HhQYk7xkV/5c/0GC36Hhu+928=
-    endpoint_host: 51.250.14.221
+    endpoint_host: 176.123.164.26
     endpoint_port: 53774
     network: 10.60.0.0/24
     default_dns: 10.60.0.1

@@ -24,10 +24,14 @@ table inet entry_split {
   chain input {
     type filter hook input priority filter; policy accept;
 
-    udp dport { {{ entry_split_wg_client_listen_port }}, {{ entry_split_wg_transit_listen_port }} } counter accept
+    udp dport { {{ entry_split_wg_client_listen_port }}, {{ entry_split_wg_transit_listen_port }}{% if entry_split_dual_exit_enabled %}, {{ entry_split_wg_client_2_listen_port }}, {{ entry_split_wg_transit_2_listen_port }}{% endif %} } counter accept
 {% if entry_split_dns_enabled %}
     iifname "{{ entry_split_wg_client_interface }}" ip saddr {{ entry_split_client_cidr }} udp dport 53 counter accept
     iifname "{{ entry_split_wg_client_interface }}" ip saddr {{ entry_split_client_cidr }} tcp dport 53 counter accept
+{% if entry_split_dual_exit_enabled %}
+    iifname "{{ entry_split_wg_client_2_interface }}" ip saddr {{ entry_split_client_2_cidr }} udp dport 53 counter accept
+    iifname "{{ entry_split_wg_client_2_interface }}" ip saddr {{ entry_split_client_2_cidr }} tcp dport 53 counter accept
+{% endif %}
 {% endif %}
   }
 
@@ -35,6 +39,9 @@ table inet entry_split {
     type filter hook prerouting priority mangle; policy accept;
 
     iifname "{{ entry_split_wg_client_interface }}" ip saddr {{ entry_split_client_cidr }} ip daddr != @ru4 ip daddr != @bypass4 counter meta mark set {{ entry_split_policy_fwmark }}
+{% if entry_split_dual_exit_enabled %}
+    iifname "{{ entry_split_wg_client_2_interface }}" ip saddr {{ entry_split_client_2_cidr }} ip daddr != @ru4 ip daddr != @bypass4 counter meta mark set {{ entry_split_policy_fwmark_exit2 }}
+{% endif %}
   }
 
   chain forward {
@@ -44,11 +51,20 @@ table inet entry_split {
     iifname "{{ entry_split_wg_client_interface }}" oifname "{{ entry_split_wg_transit_interface }}" ip saddr {{ entry_split_client_cidr }} meta mark {{ entry_split_policy_fwmark }} counter accept
     iifname "{{ entry_split_public_interface }}" oifname "{{ entry_split_wg_client_interface }}" ip daddr {{ entry_split_client_cidr }} ct state established,related counter accept
     iifname "{{ entry_split_wg_transit_interface }}" oifname "{{ entry_split_wg_client_interface }}" ip daddr {{ entry_split_client_cidr }} ct state established,related counter accept
+{% if entry_split_dual_exit_enabled %}
+    iifname "{{ entry_split_wg_client_2_interface }}" oifname "{{ entry_split_public_interface }}" ip saddr {{ entry_split_client_2_cidr }} counter accept
+    iifname "{{ entry_split_wg_client_2_interface }}" oifname "{{ entry_split_wg_transit_2_interface }}" ip saddr {{ entry_split_client_2_cidr }} meta mark {{ entry_split_policy_fwmark_exit2 }} counter accept
+    iifname "{{ entry_split_public_interface }}" oifname "{{ entry_split_wg_client_2_interface }}" ip daddr {{ entry_split_client_2_cidr }} ct state established,related counter accept
+    iifname "{{ entry_split_wg_transit_2_interface }}" oifname "{{ entry_split_wg_client_2_interface }}" ip daddr {{ entry_split_client_2_cidr }} ct state established,related counter accept
+{% endif %}
   }
 
   chain postrouting {
     type nat hook postrouting priority srcnat; policy accept;
 
     oifname "{{ entry_split_public_interface }}" ip saddr {{ entry_split_client_cidr }} counter masquerade
+{% if entry_split_dual_exit_enabled %}
+    oifname "{{ entry_split_public_interface }}" ip saddr {{ entry_split_client_2_cidr }} counter masquerade
+{% endif %}
   }
 }

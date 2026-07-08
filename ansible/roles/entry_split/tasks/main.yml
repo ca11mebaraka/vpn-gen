@@ -9,6 +9,20 @@
       - >
         (entry_split_wg_transit_private_key | length > 0) or
         (entry_split_wg_transit_private_key_path | length > 0)
+      - >
+        (not entry_split_dual_exit_enabled) or
+        (entry_split_exit2_wg_transit_public_key | length > 0)
+      - >
+        (not entry_split_dual_exit_enabled) or
+        (entry_split_exit2_wg_transit_endpoint | length > 0)
+      - >
+        (not entry_split_dual_exit_enabled) or
+        (entry_split_wg_client_2_private_key | length > 0) or
+        (entry_split_wg_client_2_private_key_path | length > 0)
+      - >
+        (not entry_split_dual_exit_enabled) or
+        (entry_split_wg_transit_2_private_key | length > 0) or
+        (entry_split_wg_transit_2_private_key_path | length > 0)
     fail_msg: >-
       Define entry_split_exit_wg_transit_public_key and provide
       entry_split_wg_client_private_key plus entry_split_wg_transit_private_key
@@ -40,6 +54,40 @@
   when: entry_split_wg_transit_private_key | length == 0
   no_log: true
 
+- name: Use provided entry client lane 2 private key
+  ansible.builtin.set_fact:
+    entry_split_wg_client_2_private_key_resolved: "{{ entry_split_wg_client_2_private_key | trim }}"
+  when:
+    - entry_split_dual_exit_enabled
+    - entry_split_wg_client_2_private_key | length > 0
+  no_log: true
+
+- name: Load entry client lane 2 private key from external path
+  ansible.builtin.set_fact:
+    entry_split_wg_client_2_private_key_resolved: >-
+      {{ lookup('ansible.builtin.file', entry_split_wg_client_2_private_key_path) | trim }}
+  when:
+    - entry_split_dual_exit_enabled
+    - entry_split_wg_client_2_private_key | length == 0
+  no_log: true
+
+- name: Use provided entry transit lane 2 private key
+  ansible.builtin.set_fact:
+    entry_split_wg_transit_2_private_key_resolved: "{{ entry_split_wg_transit_2_private_key | trim }}"
+  when:
+    - entry_split_dual_exit_enabled
+    - entry_split_wg_transit_2_private_key | length > 0
+  no_log: true
+
+- name: Load entry transit lane 2 private key from external path
+  ansible.builtin.set_fact:
+    entry_split_wg_transit_2_private_key_resolved: >-
+      {{ lookup('ansible.builtin.file', entry_split_wg_transit_2_private_key_path) | trim }}
+  when:
+    - entry_split_dual_exit_enabled
+    - entry_split_wg_transit_2_private_key | length == 0
+  no_log: true
+
 - name: Ensure WireGuard configuration directory exists
   ansible.builtin.file:
     path: /etc/wireguard
@@ -55,6 +103,14 @@
     line: "{{ entry_split_policy_table }} wg_transit"
     create: false
 
+- name: Register WireGuard transit lane 2 policy table name
+  ansible.builtin.lineinfile:
+    path: /etc/iproute2/rt_tables
+    regexp: "^{{ entry_split_policy_table_exit2 }}\\s+"
+    line: "{{ entry_split_policy_table_exit2 }} wg_transit_2"
+    create: false
+  when: entry_split_dual_exit_enabled
+
 - name: Render entry WireGuard client config
   ansible.builtin.template:
     src: wg-client.conf.j2
@@ -65,6 +121,17 @@
   notify: Restart entry WireGuard client
   no_log: true
 
+- name: Render entry WireGuard client lane 2 config
+  ansible.builtin.template:
+    src: wg-client-2.conf.j2
+    dest: "/etc/wireguard/{{ entry_split_wg_client_2_interface }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart entry WireGuard client lane 2
+  when: entry_split_dual_exit_enabled
+  no_log: true
+
 - name: Render entry WireGuard transit config
   ansible.builtin.template:
     src: wg-transit.conf.j2
@@ -73,6 +140,17 @@
     group: root
     mode: "0600"
   notify: Restart entry WireGuard transit
+  no_log: true
+
+- name: Render entry WireGuard transit lane 2 config
+  ansible.builtin.template:
+    src: wg-transit-2.conf.j2
+    dest: "/etc/wireguard/{{ entry_split_wg_transit_2_interface }}.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart entry WireGuard transit lane 2
+  when: entry_split_dual_exit_enabled
   no_log: true
 
 - name: Ensure nftables include directory exists
@@ -120,11 +198,25 @@
     enabled: true
     state: started
 
+- name: Enable entry WireGuard client lane 2 service
+  ansible.builtin.service:
+    name: "wg-quick@{{ entry_split_wg_client_2_interface }}"
+    enabled: true
+    state: started
+  when: entry_split_dual_exit_enabled
+
 - name: Enable entry WireGuard transit service
   ansible.builtin.service:
     name: "wg-quick@{{ entry_split_wg_transit_interface }}"
     enabled: true
     state: started
+
+- name: Enable entry WireGuard transit lane 2 service
+  ansible.builtin.service:
+    name: "wg-quick@{{ entry_split_wg_transit_2_interface }}"
+    enabled: true
+    state: started
+  when: entry_split_dual_exit_enabled
 
 - name: Ensure dnsmasq is installed for VPN clients
   ansible.builtin.apt:
@@ -141,6 +233,10 @@
     group: root
     mode: "0644"
   notify: Restart dnsmasq
+  when: entry_split_dns_enabled
+
+- name: Apply pending WireGuard restarts before DNS
+  ansible.builtin.meta: flush_handlers
   when: entry_split_dns_enabled
 
 - name: Enable dnsmasq for VPN clients

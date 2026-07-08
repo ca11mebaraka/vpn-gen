@@ -1,11 +1,34 @@
 ---
 entry_split_wg_client_interface: wg-client
 entry_split_wg_client_address: 10.60.0.1/24
+entry_split_wg_client_2_address: 10.61.0.1/24
 entry_split_wg_client_listen_port: 53774
 
 entry_split_wg_transit_interface: wg-transit
 entry_split_wg_transit_address: 10.70.0.1/30
 entry_split_wg_transit_listen_port: 51821
+
+entry_split_dual_exit_enabled: false
+entry_split_wg_client_2_interface: wg-client-2
+entry_split_wg_client_2_listen_port: 54774
+entry_split_wg_client_2_private_key: ""
+entry_split_wg_client_2_private_key_path: ""
+
+entry_split_wg_transit_2_interface: wg-transit-2
+entry_split_wg_transit_2_address: 10.71.0.1/30
+entry_split_wg_transit_2_listen_port: 49249
+entry_split_wg_transit_2_private_key: ""
+entry_split_wg_transit_2_private_key_path: ""
+
+entry_split_exit2_wg_transit_public_key: ""
+entry_split_exit2_wg_transit_endpoint: ""
+entry_split_exit2_allowed_ips:
+  - 0.0.0.0/0
+entry_split_exit2_persistent_keepalive: 25
+entry_split_policy_fwmark_exit2: "0x4"
+entry_split_policy_table_exit2: 201
+entry_split_policy_rule_priority_exit2: 201
+entry_split_policy_return_rule_priority_exit2: 202
 
 # Provide private key values through Ansible Vault/extra-vars or paths outside
 # the repository. Do not commit private keys.
@@ -23,6 +46,7 @@ entry_split_exit_allowed_ips:
 entry_split_exit_persistent_keepalive: 25
 
 entry_split_client_cidr: 10.60.0.0/24
+entry_split_client_2_cidr: 10.61.0.0/24
 entry_split_public_interface: eth0
 entry_split_policy_table: 200
 entry_split_policy_rule_priority: 200
@@ -32,6 +56,7 @@ entry_split_nftables_fragment: /etc/nftables.d/entry_split.nft
 entry_split_dns_enabled: true
 entry_split_dns_interface: "{{ entry_split_wg_client_interface }}"
 entry_split_dns_listen_address: "10.60.0.1"
+entry_split_dns_2_listen_address: "10.61.0.1"
 entry_split_dns_upstreams:
   - "10.128.0.2"
   - "1.1.1.1"

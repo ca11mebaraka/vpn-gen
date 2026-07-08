@@ -1,0 +1,19 @@
+[Interface]
+Address = {{ entry_split_wg_transit_2_address }}
+ListenPort = {{ entry_split_wg_transit_2_listen_port }}
+PrivateKey = {{ entry_split_wg_transit_2_private_key_resolved }}
+Table = off
+PostUp = ip rule add fwmark {{ entry_split_policy_fwmark_exit2 }} table {{ entry_split_policy_table_exit2 }} priority {{ entry_split_policy_rule_priority_exit2 }} 2>/dev/null || true
+PostUp = ip route replace default dev %i table {{ entry_split_policy_table_exit2 }}
+PostUp = ip route replace {{ entry_split_client_2_cidr }} dev {{ entry_split_wg_client_2_interface }} table {{ entry_split_policy_table_exit2 }}
+PostUp = ip rule add iif %i table {{ entry_split_policy_table_exit2 }} priority {{ entry_split_policy_return_rule_priority_exit2 }} 2>/dev/null || true
+PostDown = ip rule del iif %i table {{ entry_split_policy_table_exit2 }} priority {{ entry_split_policy_return_rule_priority_exit2 }} 2>/dev/null || true
+PostDown = ip route del {{ entry_split_client_2_cidr }} dev {{ entry_split_wg_client_2_interface }} table {{ entry_split_policy_table_exit2 }} 2>/dev/null || true
+PostDown = ip route del default dev %i table {{ entry_split_policy_table_exit2 }} 2>/dev/null || true
+PostDown = ip rule del fwmark {{ entry_split_policy_fwmark_exit2 }} table {{ entry_split_policy_table_exit2 }} priority {{ entry_split_policy_rule_priority_exit2 }} 2>/dev/null || true
+
+[Peer]
+PublicKey = {{ entry_split_exit2_wg_transit_public_key }}
+Endpoint = {{ entry_split_exit2_wg_transit_endpoint }}
+AllowedIPs = {{ entry_split_exit2_allowed_ips | join(', ') }}
+PersistentKeepalive = {{ entry_split_exit2_persistent_keepalive }}

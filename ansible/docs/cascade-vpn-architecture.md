@@ -43,11 +43,14 @@ flowchart LR
 
 | Сеть | Назначение |
 |------|------------|
-| `10.60.0.0/24` | Клиенты split entry (`10.60.0.1` — сервер) |
-| `10.70.0.0/30` | Transit split ↔ exit (`10.70.0.1` / `10.70.0.2`) |
+| `10.60.0.0/24` | Клиенты split lane 1 (`10.60.0.1` — сервер, exit_01) |
+| `10.61.0.0/24` | Клиенты split lane 2 (`10.61.0.1` — сервер, exit_02) |
+| `10.70.0.0/30` | Transit split ↔ exit_01 (`10.70.0.1` / `10.70.0.2`) |
+| `10.71.0.0/30` | Transit split lane 2 ↔ exit_02 (`10.71.0.1` / `10.71.0.2`) |
 | `10.80.0.0/24` | Клиенты full entry (`10.80.0.1` — сервер) |
 | `10.91.0.0/32` | Transit full ↔ exit (`10.91.0.1` / `10.91.0.2`) |
-| table `200` | Policy routing split: `fwmark 0x2` → `wg-transit` |
+| table `200` | Policy routing lane 1: `fwmark 0x2` → `wg-transit` |
+| table `201` | Policy routing lane 2: `fwmark 0x4` → `wg-transit-2` |
 | table `210` | Policy routing full: трафик `10.80.0.0/24` → `wg-transit` |
 
 Порты (reference): split клиенты `53774`, transit split `51821`, full клиенты `51944`, transit full `51945`, exit full `51946`.
@@ -56,7 +59,18 @@ flowchart LR
 
 ### entry_split
 
-- **wg-client** — клиенты; endpoint `51.250.14.221:53774`; адрес `10.60.0.1/24`
+### entry_split (dual-exit reference)
+
+- **wg-client** — lane 1; `:53774`; `10.60.0.1/24`; exit_01
+- **wg-client-2** — lane 2; `:54774`; `10.61.0.1/24`; exit_02
+- **wg-transit** — tunnel на exit_01; `10.70.0.1/30`
+- **wg-transit-2** — tunnel на exit_02; `10.71.0.1/30`
+
+Lane group `split`: один пользователь, один ключ, два конфига. Адрес зеркалируется по host-октету: `10.60.0.N` ↔ `10.61.0.N`. Отдельные подсети устраняют конфликт маршрутов и DNS на entry.
+
+### entry_split (single-exit)
+
+- **wg-client** — клиенты; endpoint split entry; адрес `10.60.0.1/24`
 - **wg-transit** — tunnel на exit; `10.70.0.1/30`; peer exit `:51821`; `Table = off`
 
 ### entry_full
@@ -66,7 +80,8 @@ flowchart LR
 
 ### exit
 
-- **wg-transit** — от split entry; `:51821`; `10.70.0.2/30`; AllowedIPs: `10.70.0.1/32, 10.60.0.0/24`
+- **wg-transit** — от split entry lane 1; `:51821`; `10.70.0.2/30`; AllowedIPs: `10.70.0.1/32, 10.60.0.0/24`
+- **wg-transit (exit_02)** — от split entry lane 2; `:51821`; `10.71.0.2/30`; AllowedIPs: `10.71.0.1/32, 10.61.0.0/24`
 - **wg-exit-full** — от full entry; `:51946`; `10.91.0.2/32`; AllowedIPs: `10.91.0.1/32, 10.80.0.0/24`
 
 ## Политика маршрутизации (split)
@@ -87,8 +102,8 @@ flowchart LR
 
 ## DNS
 
-- Клиентам split рекомендуется DNS на entry (`10.60.0.1`).
-- На live-узле: `dnsmasq` на `wg-client`, upstream `10.128.0.2` + `1.1.1.1`, `filter-AAAA` (IPv4-only).
+- Клиентам lane 1: DNS `10.60.0.1`; lane 2: DNS `10.61.0.1`.
+- На entry: `dnsmasq` на `wg-client` + `wg-client-2`, upstream из `entry_split_dns_upstreams`, `filter-AAAA`.
 - Маршрутизация по **IP после DNS**; CDN могут отдавать разные адреса — это ограничение IP-based split.
 
 ## nftables

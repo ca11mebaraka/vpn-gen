@@ -1,13 +1,37 @@
 host_notes:
   os: Ubuntu 24.04.4 LTS
-  vm_name: entry-split-01
+  vm_name: entry-split-cloud-ru
+  provider: cloud.ru
   public_ip: "{{ vpn_gen_entry_split_host }}"
   ssh_user: "{{ vpn_gen_entry_split_ssh_user }}"
   ssh_key: "{{ vpn_gen_ssh_key_entry }}"
 
 entry_split_wg_client_listen_port: "{{ vpn_gen_entry_split_client_port }}"
+# cloud.ru blocks egress UDP from ports like 51821/58291; use ephemeral listen port.
+entry_split_wg_transit_listen_port: 49248
+entry_split_public_interface: enp3s0
+entry_split_dns_upstreams:
+  - "1.1.1.1"
+  - "8.8.8.8"
 
 entry_split_exit_wg_transit_public_key: "tHt+xqudJqKDXQIm3pgGDuvre7L3y1WkUKB7m0qgvFw="
+
+entry_split_dual_exit_enabled: true
+entry_split_wg_client_2_listen_port: "{{ vpn_gen_entry_split_client_port_2 }}"
+entry_split_wg_transit_2_listen_port: "{{ vpn_gen_entry_split_transit_port_2 }}"
+entry_split_wg_client_2_private_key_path: "{{ vpn_gen_wg_secret_dir }}/entry_split_wg_client_2.private.key"
+entry_split_wg_transit_2_private_key_path: "{{ vpn_gen_wg_secret_dir }}/entry_split_wg_transit_2.private.key"
+entry_split_exit2_wg_transit_public_key: "R+WbGrJfzRd3U1S9Le6PJeKOoPaFgHmx07KsrHNAik4="
+entry_split_bypass_ipv4_cidrs:
+  - 10.0.0.0/8
+  - 100.64.0.0/10
+  - 127.0.0.0/8
+  - 169.254.0.0/16
+  - 172.16.0.0/12
+  - 192.168.0.0/16
+  - 224.0.0.0/4
+  - "{{ vpn_gen_exit_host }}/32"
+  - "{{ vpn_gen_exit2_host }}/32"
 
 entry_split_wg_client_peers:
   - name: initial-client

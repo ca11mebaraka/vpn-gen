@@ -1,5 +1,9 @@
-interface={{ entry_split_dns_interface }}
+interface={{ entry_split_wg_client_interface }}
 listen-address={{ entry_split_dns_listen_address }}
+{% if entry_split_dual_exit_enabled %}
+interface={{ entry_split_wg_client_2_interface }}
+listen-address={{ entry_split_dns_2_listen_address }}
+{% endif %}
 bind-interfaces
 domain-needed
 bogus-priv

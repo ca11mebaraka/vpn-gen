@@ -202,16 +202,174 @@ def genkey() -> tuple[str, str]:
 
 
 def default_allowed_ips(profile: Profile) -> str:
-    endpoint = ipaddress.ip_network(f"{profile.endpoint_host}/32")
-    return ",".join(str(net) for net in ipaddress.ip_network("0.0.0.0/0").address_exclude(endpoint))
+    """Build split-tunnel AllowedIPs with the endpoint excluded.
+
+    Use 0.0.0.0/1 plus a carved 128.0.0.0/1 so macOS WireGuard does not install
+    a single 128.0.0.0/1 route that re-includes the endpoint and breaks handshake.
+    """
+    endpoint = ipaddress.ip_address(profile.endpoint_host)
+    lower = ipaddress.ip_network("0.0.0.0/1")
+    upper = ipaddress.ip_network("128.0.0.0/1")
+    nets: list[ipaddress.IPv4Network] = [lower]
+    if endpoint in upper:
+        hole = ipaddress.ip_network(f"{profile.endpoint_host}/32")
+        nets.extend(upper.address_exclude(hole))
+    else:
+        nets.append(upper)
+    return ",".join(str(net) for net in nets)
+
+
+def resolved_profile_name(name: str) -> str:
+    return PROFILE_ALIASES.get(name, name)
+
+
+def client_lane_group(profile_name: str) -> str:
+    resolved = resolved_profile_name(profile_name)
+    return PROFILES[resolved].get("lane_group", resolved)
+
+
+def client_in_lane_group(client: dict[str, Any], profile: Profile) -> bool:
+    return client_lane_group(client["profile"]) == lane_group_name(profile)
+
+
+def lane_group_name(profile: Profile) -> str:
+    return PROFILES[profile.name].get("lane_group", profile.name)
+
+
+def lane_profile_names(profile: Profile) -> list[str]:
+    group = lane_group_name(profile)
+    return sorted(
+        name for name, raw in PROFILES.items() if raw.get("lane_group", name) == group
+    )
+
+
+def primary_lane_profile(profile: Profile) -> Profile:
+    return Profile.from_name(lane_profile_names(profile)[0])
+
+
+def lane_registry_keys(profile: Profile, name: str) -> list[str]:
+    return [registry_key(profile_name, name) for profile_name in lane_profile_names(profile)]
+
+
+def build_client_record(
+    profile: Profile,
+    name: str,
+    *,
+    address: str,
+    public_key: str,
+    private_key_path: str,
+    public_key_path: str,
+    dns: str,
+    mtu: int,
+    allowed_ips: str | None,
+    persistent_keepalive: int,
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "profile": profile.name,
+        "enabled": True,
+        "address": address,
+        "dns": dns,
+        "mtu": mtu,
+        "allowed_ips": allowed_ips or default_allowed_ips(profile),
+        "endpoint": profile.endpoint,
+        "server_public_key": profile.server_public_key,
+        "public_key": public_key,
+        "private_key_path": private_key_path,
+        "public_key_path": public_key_path,
+        "persistent_keepalive": persistent_keepalive,
+    }
+
+
+def lane_mirror_address(source_client: dict[str, Any], lane_profile: Profile, primary: Profile) -> str:
+    source_ip = ipaddress.ip_interface(source_client["address"]).ip
+    host_offset = int(source_ip) - int(primary.network.network_address)
+    target_ip = lane_profile.network.network_address + host_offset
+    if target_ip not in lane_profile.network:
+        raise CommandError(
+            f"cannot mirror {source_client['address']} to {lane_profile.name}: "
+            f"{target_ip} is outside {lane_profile.network}"
+        )
+    return f"{target_ip}/32"
+
+
+def refresh_lane_group_addresses(registry: dict[str, Any], client: dict[str, Any]) -> None:
+    profile = Profile.from_name(client["profile"])
+    primary = primary_lane_profile(profile)
+    primary_key = registry_key(primary.name, client["name"])
+    primary_client = registry["clients"].get(primary_key, client)
+    ensure_lane_mirrors(registry, primary_client)
+    for profile_name in lane_profile_names(profile):
+        if profile_name == primary.name:
+            continue
+        lane_profile = Profile.from_name(profile_name)
+        lane_key = registry_key(profile_name, client["name"])
+        lane_client = registry["clients"][lane_key]
+        lane_client["address"] = lane_mirror_address(primary_client, lane_profile, primary)
+        lane_client["dns"] = lane_profile.default_dns
+        lane_client["public_key"] = primary_client["public_key"]
+        lane_client["private_key_path"] = primary_client["private_key_path"]
+        lane_client["public_key_path"] = primary_client["public_key_path"]
+        lane_client["mtu"] = primary_client["mtu"]
+        lane_client["persistent_keepalive"] = primary_client["persistent_keepalive"]
+
+
+def ensure_lane_mirrors(registry: dict[str, Any], source_client: dict[str, Any]) -> list[str]:
+    profile = Profile.from_name(source_client["profile"])
+    primary = primary_lane_profile(profile)
+    primary_client = registry["clients"].get(registry_key(primary.name, source_client["name"]), source_client)
+    created: list[str] = []
+    for profile_name in lane_profile_names(profile):
+        if profile_name == primary.name:
+            continue
+        key = registry_key(profile_name, source_client["name"])
+        if key in registry["clients"]:
+            continue
+        lane_profile = Profile.from_name(profile_name)
+        registry["clients"][key] = build_client_record(
+            lane_profile,
+            source_client["name"],
+            address=lane_mirror_address(primary_client, lane_profile, primary),
+            public_key=source_client["public_key"],
+            private_key_path=source_client["private_key_path"],
+            public_key_path=source_client["public_key_path"],
+            dns=lane_profile.default_dns,
+            mtu=int(source_client["mtu"]),
+            allowed_ips=default_allowed_ips(lane_profile),
+            persistent_keepalive=int(source_client["persistent_keepalive"]),
+        )
+        created.append(key)
+    return created
+
+
+def sync_lane_group(registry: dict[str, Any], profile: Profile) -> int:
+    count = 0
+    seen: set[str] = set()
+    clients = list(registry["clients"].values())
+    for client in clients:
+        if not client_in_lane_group(client, profile):
+            continue
+        if client["name"] in seen:
+            continue
+        seen.add(client["name"])
+        ensure_lane_mirrors(registry, client)
+        refresh_lane_group_addresses(registry, client)
+        for profile_name in lane_profile_names(profile):
+            lane_client = registry["clients"][registry_key(profile_name, client["name"])]
+            lane_profile = Profile.from_name(profile_name)
+            remote_apply_peer(lane_profile, lane_client, enabled=bool(lane_client["enabled"]))
+            count += 1
+    return count
 
 
 def allocate_ip(profile: Profile, registry: dict[str, Any]) -> str:
+    lane_names = lane_profile_names(profile)
     used = {profile.network.network_address, profile.network.broadcast_address}
-    # Server address is normally .1.
     used.add(next(profile.network.hosts()))
     for client in registry["clients"].values():
-        if client.get("profile") == profile.name:
+        if client.get("profile") in lane_names:
+            used.add(ipaddress.ip_interface(client["address"]).ip)
+        elif client_lane_group(client["profile"]) == lane_group_name(profile):
             used.add(ipaddress.ip_interface(client["address"]).ip)
     for host in profile.network.hosts():
         if host not in used:
@@ -330,40 +488,60 @@ def command_profiles(_: argparse.Namespace) -> None:
 def command_add(args: argparse.Namespace) -> None:
     require_tools("wg")
     profile = Profile.from_name(args.profile)
+    primary = primary_lane_profile(profile)
     registry = load_registry()
     name = slugify(args.name)
-    key = registry_key(profile.name, name)
-    if key in registry["clients"]:
-        raise CommandError(f"client already exists: {key}")
+    existing = [key for key in lane_registry_keys(profile, name) if key in registry["clients"]]
+    if existing:
+        raise CommandError(f"client already exists: {', '.join(existing)}")
     private_key, public_key = genkey()
-    address = args.address or allocate_ip(profile, registry)
+    address = args.address or allocate_ip(primary, registry)
     ipaddress.ip_interface(address)
-    paths = write_key_files(profile.name, name, private_key, public_key)
-    client = {
+    paths = write_key_files(primary.name, name, private_key, public_key)
+    primary_record = {
         "name": name,
-        "profile": profile.name,
-        "enabled": True,
         "address": address,
-        "dns": args.dns or profile.default_dns,
-        "mtu": args.mtu if args.mtu is not None else profile.default_mtu,
-        "allowed_ips": args.allowed_ips or default_allowed_ips(profile),
-        "endpoint": profile.endpoint,
-        "server_public_key": profile.server_public_key,
-        "public_key": public_key,
-        "private_key_path": paths["private_key_path"],
-        "public_key_path": paths["public_key_path"],
+        "mtu": args.mtu if args.mtu is not None else primary.default_mtu,
         "persistent_keepalive": args.persistent_keepalive,
     }
+    lane_clients: list[tuple[Profile, dict[str, Any]]] = []
+    for profile_name in lane_profile_names(profile):
+        lane_profile = Profile.from_name(profile_name)
+        lane_address = (
+            address
+            if profile_name == primary.name
+            else lane_mirror_address(primary_record, lane_profile, primary)
+        )
+        lane_clients.append(
+            (
+                lane_profile,
+                build_client_record(
+                    lane_profile,
+                    name,
+                    address=lane_address,
+                    public_key=public_key,
+                    private_key_path=paths["private_key_path"],
+                    public_key_path=paths["public_key_path"],
+                    dns=args.dns or lane_profile.default_dns,
+                    mtu=args.mtu if args.mtu is not None else lane_profile.default_mtu,
+                    allowed_ips=args.allowed_ips if profile_name == primary.name else None,
+                    persistent_keepalive=args.persistent_keepalive,
+                ),
+            )
+        )
     try:
-        remote_apply_peer(profile, client, enabled=True)
+        for lane_profile, client in lane_clients:
+            remote_apply_peer(lane_profile, client, enabled=True)
     except CommandError:
-        shutil.rmtree(client_dir(profile.name, name), ignore_errors=True)
+        shutil.rmtree(client_dir(primary.name, name), ignore_errors=True)
         raise
-    registry["clients"][key] = client
+    for lane_profile, client in lane_clients:
+        registry["clients"][registry_key(lane_profile.name, name)] = client
     save_registry(registry)
-    config_path = export_client(client, args.output)
-    print(f"added {key}")
-    print(f"config: {config_path}")
+    print(f"added {', '.join(registry_key(p.name, name) for p, _ in lane_clients)}")
+    for lane_profile, client in lane_clients:
+        config_path = export_client(client, None if lane_profile.name != primary.name else args.output)
+        print(f"config[{lane_profile.name}]: {config_path}")
 
 
 def command_edit(args: argparse.Namespace) -> None:
@@ -373,20 +551,37 @@ def command_edit(args: argparse.Namespace) -> None:
     if not client:
         raise CommandError(f"client not found: {key}")
     profile = Profile.from_name(client["profile"])
+    primary = primary_lane_profile(profile)
+    ensure_lane_mirrors(registry, client)
     if args.address:
         ipaddress.ip_interface(args.address)
-        client["address"] = args.address
-    if args.dns:
-        client["dns"] = args.dns
-    if args.mtu is not None:
-        client["mtu"] = args.mtu
-    if args.allowed_ips:
-        client["allowed_ips"] = args.allowed_ips
-    if args.endpoint:
-        client["endpoint"] = args.endpoint
-    remote_apply_peer(profile, client, enabled=bool(client["enabled"]))
+        primary_key = registry_key(primary.name, client["name"])
+        if client["profile"] != primary.name and registry["clients"].get(primary_key):
+            raise CommandError(f"change address on primary profile {primary.name} instead")
+    for profile_name in lane_profile_names(profile):
+        lane_key = registry_key(profile_name, client["name"])
+        lane_client = registry["clients"][lane_key]
+        lane_profile = Profile.from_name(profile_name)
+        if args.address and profile_name == primary.name:
+            lane_client["address"] = args.address
+        if args.dns:
+            lane_client["dns"] = args.dns
+        if args.mtu is not None:
+            lane_client["mtu"] = args.mtu
+        if args.allowed_ips:
+            lane_client["allowed_ips"] = args.allowed_ips
+        elif args.endpoint:
+            lane_client["allowed_ips"] = default_allowed_ips(lane_profile)
+        if args.endpoint:
+            lane_client["endpoint"] = args.endpoint
+    refresh_lane_group_addresses(registry, client)
+    for profile_name in lane_profile_names(profile):
+        lane_key = registry_key(profile_name, client["name"])
+        lane_client = registry["clients"][lane_key]
+        lane_profile = Profile.from_name(profile_name)
+        remote_apply_peer(lane_profile, lane_client, enabled=bool(lane_client["enabled"]))
     save_registry(registry)
-    print(f"edited {key}")
+    print(f"edited {', '.join(registry_key(p, client['name']) for p in lane_profile_names(profile))}")
 
 
 def command_set_enabled(args: argparse.Namespace, enabled: bool) -> None:
@@ -396,18 +591,24 @@ def command_set_enabled(args: argparse.Namespace, enabled: bool) -> None:
     if not client:
         raise CommandError(f"client not found: {key}")
     profile = Profile.from_name(client["profile"])
-    client["enabled"] = enabled
-    remote_apply_peer(profile, client, enabled=enabled)
+    ensure_lane_mirrors(registry, client)
+    for profile_name in lane_profile_names(profile):
+        lane_key = registry_key(profile_name, client["name"])
+        lane_client = registry["clients"][lane_key]
+        lane_profile = Profile.from_name(profile_name)
+        lane_client["enabled"] = enabled
+        remote_apply_peer(lane_profile, lane_client, enabled=enabled)
     save_registry(registry)
-    print(("enabled" if enabled else "disabled") + f" {key}")
+    print(("enabled" if enabled else "disabled") + f" {', '.join(registry_key(p, client['name']) for p in lane_profile_names(profile))}")
 
 
 def command_list(args: argparse.Namespace) -> None:
     registry = load_registry()
     print("Managed clients:")
     for key, client in sorted(registry["clients"].items()):
-        if args.profile and client["profile"] != args.profile:
-            continue
+        if args.profile:
+            if not client_in_lane_group(client, Profile.from_name(args.profile)):
+                continue
         status = "enabled" if client.get("enabled") else "disabled"
         print(f"- {key} {client['address']} {status} pub={client['public_key']}")
     if args.remote:
@@ -435,6 +636,16 @@ def command_export(args: argparse.Namespace) -> None:
     client = registry["clients"].get(key)
     if not client:
         raise CommandError(f"client not found: {key}")
+    profile = Profile.from_name(client["profile"])
+    ensure_lane_mirrors(registry, client)
+    save_registry(registry)
+    if getattr(args, "all_lanes", False):
+        for profile_name in lane_profile_names(profile):
+            lane_client = registry["clients"][registry_key(profile_name, client["name"])]
+            path = export_client(lane_client, None)
+            print(path)
+        return
+    client = registry["clients"][key]
     path = export_client(client, args.output)
     print(path)
 
@@ -467,13 +678,19 @@ def command_show_config(args: argparse.Namespace) -> None:
 
 def command_sync(args: argparse.Namespace) -> None:
     registry = load_registry()
+    if args.profile:
+        profile = Profile.from_name(args.profile)
+        count = sync_lane_group(registry, profile)
+        save_registry(registry)
+        print(f"synced {count} clients")
+        return
     count = 0
-    for key, client in sorted(registry["clients"].items()):
-        if args.profile and client["profile"] != args.profile:
-            continue
-        profile = Profile.from_name(client["profile"])
-        remote_apply_peer(profile, client, enabled=bool(client["enabled"]))
-        count += 1
+    groups: set[str] = set()
+    for client in registry["clients"].values():
+        groups.add(lane_group_name(Profile.from_name(client["profile"])))
+    for group in sorted(groups):
+        count += sync_lane_group(registry, Profile.from_name(group))
+    save_registry(registry)
     print(f"synced {count} clients")
 
 
@@ -523,6 +740,7 @@ def build_parser() -> argparse.ArgumentParser:
     export_p.add_argument("name")
     export_p.add_argument("--profile", choices=profile_choices(), default="split")
     export_p.add_argument("--output")
+    export_p.add_argument("--all-lanes", action="store_true", help="Export configs for every lane in the group")
     export_p.set_defaults(func=command_export)
 
     qr_p = sub.add_parser("qr", help="Generate a QR PNG for a client")

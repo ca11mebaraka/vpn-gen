@@ -1,0 +1,7 @@
+[Interface]
+Address = {{ entry_split_wg_client_2_address }}
+ListenPort = {{ entry_split_wg_client_2_listen_port }}
+PrivateKey = {{ entry_split_wg_client_2_private_key_resolved }}
+PostUp = ip route replace {{ entry_split_client_2_cidr }} dev %i table {{ entry_split_policy_table_exit2 }} 2>/dev/null || true
+PostDown = ip route del {{ entry_split_client_2_cidr }} dev %i table {{ entry_split_policy_table_exit2 }} 2>/dev/null || true
+

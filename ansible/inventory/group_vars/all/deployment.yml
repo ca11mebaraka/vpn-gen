@@ -5,21 +5,29 @@
 vpn_gen_entry_split_host: "{{ lookup('env', 'VPN_GEN_ENTRY_SPLIT_HOST') | default('', true) }}"
 vpn_gen_entry_full_host: "{{ lookup('env', 'VPN_GEN_ENTRY_FULL_HOST') | default('', true) }}"
 vpn_gen_exit_host: "{{ lookup('env', 'VPN_GEN_EXIT_HOST') | default('', true) }}"
+vpn_gen_exit2_host: "{{ lookup('env', 'VPN_GEN_EXIT2_HOST') | default('', true) }}"
 
 vpn_gen_entry_split_ssh_user: "{{ lookup('env', 'VPN_GEN_ENTRY_SPLIT_SSH_USER') | default('deploy', true) }}"
 vpn_gen_entry_full_ssh_user: "{{ lookup('env', 'VPN_GEN_ENTRY_FULL_SSH_USER') | default('deploy', true) }}"
 vpn_gen_exit_ssh_user: "{{ lookup('env', 'VPN_GEN_EXIT_SSH_USER') | default('deploy', true) }}"
+vpn_gen_exit2_ssh_user: "{{ lookup('env', 'VPN_GEN_EXIT2_SSH_USER') | default('root', true) }}"
 
 vpn_gen_exit_entry_full_enabled: "{{ lookup('env', 'VPN_GEN_EXIT_ENTRY_FULL_ENABLED') | default('false', true) | bool }}"
 exit_entry_full_enabled: "{{ vpn_gen_exit_entry_full_enabled }}"
 
 vpn_gen_ssh_key_entry: "{{ lookup('env', 'VPN_GEN_SSH_KEY_ENTRY') | default('~/.ssh/id_ed25519', true) }}"
 vpn_gen_ssh_key_exit: "{{ lookup('env', 'VPN_GEN_SSH_KEY_EXIT') | default(vpn_gen_ssh_key_entry, true) }}"
+vpn_gen_ssh_key_exit2: "{{ lookup('env', 'VPN_GEN_SSH_KEY_EXIT2') | default(vpn_gen_ssh_key_entry, true) }}"
 
 vpn_gen_exit_transit_port: "{{ lookup('env', 'VPN_GEN_EXIT_TRANSIT_PORT') | default('51821', true) }}"
 vpn_gen_exit_full_port: "{{ lookup('env', 'VPN_GEN_EXIT_FULL_PORT') | default('51946', true) }}"
 vpn_gen_entry_full_client_port: "{{ lookup('env', 'VPN_GEN_ENTRY_FULL_CLIENT_PORT') | default('51944', true) }}"
 vpn_gen_entry_split_client_port: "{{ lookup('env', 'VPN_GEN_WG_CLIENT_ENDPOINT_PORT') | default('53774', true) }}"
+vpn_gen_entry_split_transit_port: "{{ lookup('env', 'VPN_GEN_ENTRY_SPLIT_TRANSIT_PORT') | default('51821', true) }}"
+vpn_gen_entry_split_client_port_2: "{{ lookup('env', 'VPN_GEN_ENTRY_SPLIT_CLIENT_PORT_2') | default('54774', true) }}"
+vpn_gen_entry_split_transit_port_2: "{{ lookup('env', 'VPN_GEN_ENTRY_SPLIT_TRANSIT_PORT_2') | default('49249', true) }}"
+vpn_gen_exit2_transit_port: "{{ lookup('env', 'VPN_GEN_EXIT2_TRANSIT_PORT') | default('51821', true) }}"
 
 entry_split_exit_wg_transit_endpoint: "{{ vpn_gen_exit_host }}:{{ vpn_gen_exit_transit_port }}"
+entry_split_exit2_wg_transit_endpoint: "{{ vpn_gen_exit2_host }}:{{ vpn_gen_exit2_transit_port }}"
 entry_full_exit_endpoint: "{{ vpn_gen_exit_host }}:{{ vpn_gen_exit_full_port }}"
