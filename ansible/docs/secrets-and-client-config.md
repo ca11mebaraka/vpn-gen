@@ -18,22 +18,31 @@
 
 ## Инициализация и проверка
 
-Из корня репозитория:
-
 ```sh
-ansible/scripts/wg-secrets-init.sh
+cd ansible
+cp .env.example .env   # или deployments/yandex-racknerd/.env.example
+source scripts/load-env.sh
+../ansible/scripts/wg-secrets-init.sh
 ```
 
-Скрипт идемпотентен: создаёт недостающие ключи и проверяет пары, не перезаписывая существующие приватные ключи.
+Скрипт идемпотентен: создаёт недостающие ключи, не перезаписывает существующие.
 
-Генерируемые пары:
+Базовые пары (single-exit):
 
 - `entry_split_wg_client`
 - `entry_split_wg_transit`
 - `exit_wg_transit`
 - `initial_client`
 
-Полезные режимы:
+**Dual-exit** (дополнительно, вручную или через `wg genkey`):
+
+| Файл | Назначение |
+|------|------------|
+| `entry_split_wg_client_2.private.key` | Сервер lane 2 (`wg-client-2`) |
+| `entry_split_wg_transit_2.private.key` | Transit lane 2 (`wg-transit-2`) |
+| `exit2_wg_transit.private.key` | Transit на `exit_02` |
+
+Пути задаются в `inventory/group_vars/all/controller.yml` и `host_vars/exit_02.yml`.
 
 ```sh
 ansible/scripts/wg-secrets-init.sh --help
@@ -41,70 +50,49 @@ ansible/scripts/wg-secrets-init.sh --dry-run
 ansible/scripts/wg-secrets-init.sh --check
 ```
 
-Для реальной инициализации нужна утилита `wg` из wireguard-tools. Каталог секретов должен принадлежать текущему пользователю, не быть symlink, права `0700`; приватные ключи — `0600`.
-
-Переопределения через env (удобнее всего — файл `ansible/.env`, см. [`.env.example`](../.env.example)):
-
-```sh
-cd ansible
-cp .env.example .env
-source scripts/load-env.sh
-ansible/scripts/wg-secrets-init.sh
-```
-
-Ключевые переменные:
+## Переменные окружения
 
 ```sh
 VPN_GEN_WG_SECRET_DIR="$HOME/.config/vpn-gen/wireguard"
 VPN_GEN_WG_PUBLIC_VARS_FILE="$HOME/.config/vpn-gen/wireguard/public-vars.yml"
-VPN_GEN_WG_CLIENT_CONFIG_PATH="$HOME/.config/vpn-gen/wireguard/initial-client.conf"
 VPN_GEN_WG_CLIENT_ENDPOINT_HOST="$VPN_GEN_ENTRY_SPLIT_HOST"
 VPN_GEN_WG_CLIENT_ENDPOINT_PORT="53774"
+VPN_GEN_ENTRY_SPLIT_CLIENT_PORT_2="54774"
 VPN_GEN_EXIT_TRANSIT_PORT="51821"
+VPN_GEN_EXIT2_TRANSIT_PORT="51821"
 ```
 
-Пути в `inventory/host_vars/` строятся из `$HOME/.config/vpn-gen/...` через `group_vars/all/controller.yml` — **не прописывайте** `/Users/<имя>/...` в git.
+Пути в `inventory/host_vars/` строятся из `$HOME/.config/vpn-gen/...` — **не прописывайте** `/Users/<имя>/...` в git.
 
 ## Генерация первого клиентского конфига
-
-После создания секретов:
 
 ```sh
 cd ansible
 ansible-playbook -i inventory/hosts.yml playbooks/client_config.yml
 ```
 
-Шаблон читает приватный ключ клиента только с локального диска во время генерации. Готовый `.conf` по умолчанию пишется вне репозитория.
-
-> Для новых пользователей удобнее [`wg-client`](wg-client-admin.md) — он создаёт ключи, peer на сервере и QR автоматически.
+> Для новых пользователей удобнее [`wg-client`](wg-client-admin.md) — ключи, peer на сервере и QR автоматически.
 
 ## Проверка утечек
 
 ```sh
 ansible/scripts/check-no-private-key-material.sh
-```
-
-Проверяется:
-
-- tracked-файлы `*.private.key`;
-- строки вида `PrivateKey = <base64>` в git;
-- совпадение с локальными `*.private.key`, если каталог секретов существует.
-
-Полная локальная проверка workflow:
-
-```sh
 ansible/scripts/validate-wireguard-workflow.sh
 ```
 
 ## Переменные для ролей
 
-Сгенерированные имена (фрагмент):
+Фрагмент имён (см. `group_vars/all/controller.yml`):
 
-- entry `wg-client`: `wireguard_entry_split_wg_client_*`, `wireguard_client_*`
-- entry `wg-transit`: `wireguard_entry_split_wg_transit_*`, `wireguard_exit_wg_transit_public_key`
-- exit `wg-transit`: `wireguard_exit_wg_transit_*`
-- клиент: `wireguard_initial_client_*`, `wireguard_entry_split_client_endpoint_*`, `wireguard_client_allowed_ips`
+| Компонент | Переменные |
+|-----------|------------|
+| entry `wg-client` | `entry_split_wg_client_*` |
+| entry `wg-client-2` | `entry_split_wg_client_2_*` |
+| entry `wg-transit` | `entry_split_wg_transit_*` |
+| entry `wg-transit-2` | `entry_split_wg_transit_2_*` |
+| exit_01 `wg-transit` | `exit_wg_transit_*` |
+| exit_02 `wg-transit` | `exit_wg_transit_*` + `exit_client_cidr: 10.61.0.0/24` |
 
-На macOS в `wireguard_client_allowed_ips` **исключайте IP endpoint** (например `51.250.14.221/32`), иначе туннель зациклит маршрут к серверу.
+На macOS в AllowedIPs клиента **исключайте IP endpoint** entry — скрипт `wg-client` делает это автоматически.
 
-Приватные ключи можно читать с контроллера при рендере конфигов WireGuard, но **нельзя** класть их значения в inventory, host_vars, docs или коммитируемые vars.
+Приватные ключи **нельзя** класть в inventory, host_vars, docs или коммитируемые vars.

@@ -5,6 +5,8 @@
 **Целевая ветка:** `v2` (или `main` после major release)  
 **Язык артефактов:** русский (документация), английский (имена ролей/переменных/файлов — как сейчас)
 
+> **Уже реализовано в v1** (не ждёт v2): dual-exit split (`wg-client-2`, `wg-transit-2`, `exit_02`, профиль `split2`, lane group в `wg-client`). См. [cascade-vpn-architecture.md](cascade-vpn-architecture.md).
+
 ---
 
 ## 1. Цель

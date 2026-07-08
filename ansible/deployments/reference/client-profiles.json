@@ -1,7 +1,8 @@
 {
   "profiles": {
     "split": {
-      "description": "Split-routing entry node",
+      "description": "Split-routing entry lane 1",
+      "lane_group": "split",
       "ssh_user": "deploy",
       "ssh_host": "CHANGE_ME",
       "ssh_key": "~/.ssh/id_ed25519",
@@ -11,6 +12,20 @@
       "endpoint_port": 53774,
       "network": "10.60.0.0/24",
       "default_dns": "10.60.0.1",
+      "default_mtu": 1280
+    },
+    "split2": {
+      "description": "Split-routing entry lane 2 (optional second exit)",
+      "lane_group": "split",
+      "ssh_user": "deploy",
+      "ssh_host": "CHANGE_ME",
+      "ssh_key": "~/.ssh/id_ed25519",
+      "interface": "wg-client-2",
+      "server_public_key": "CHANGE_ME",
+      "endpoint_host": "CHANGE_ME",
+      "endpoint_port": 54774,
+      "network": "10.61.0.0/24",
+      "default_dns": "10.61.0.1",
       "default_mtu": 1280
     },
     "full": {

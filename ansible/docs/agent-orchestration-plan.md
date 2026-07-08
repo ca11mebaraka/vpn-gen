@@ -6,23 +6,11 @@
 
 - пользователь подключается к entry по WireGuard;
 - split entry выпускает «локальный» трафик напрямую;
-- split entry отправляет остальной трафик в зашифрованный tunnel на exit;
+- split entry отправляет остальной трафик в зашифрованный tunnel на exit (lane 1 и/или lane 2);
 - exit делает NAT в интернет;
 - при падении tunnel non-RU трафик **не** уходит напрямую с entry (fail-closed).
 
 ## Дисциплина тестирования
-
-На каждом шаге — максимум проверок:
-
-- автоматические тесты вместе с каждым изменением;
-- узкая проверка сразу после правки, широкая — перед handoff;
-- фиксировать команды в отчёте;
-- предупреждения Ansible/systemd/nftables/wg — исправлять, если не документированы как безопасные;
-- **стоп** при падении обязательной проверки;
-- idempotence: второй прогон плейбука без лишних изменений;
-- для сетевых изменений — проверить SSH до и после, иметь rollback.
-
-Минимум по слоям:
 
 | Слой | Проверки |
 |------|----------|
@@ -30,85 +18,85 @@
 | Ansible | `--syntax-check`, `--check`, live run |
 | Хост | пакеты, sysctl, systemd, idempotent rerun |
 | WireGuard | `wg show`, handshakes, counters |
-| Маршруты | `ip rule`, table 200/210, `ip route get` |
+| Маршруты | `ip rule`, tables 200/201/210, `ip route get` |
 | nftables | `nft -c`, `nft list ruleset`, counters |
-| E2E | клиент, DNS, RU/non-RU egress IP, fail-closed |
+| E2E | клиент split/split2, DNS, RU/non-RU egress IP, fail-closed |
 
 ## Агент 1: Inventory и baseline
 
-- актуальный `inventory/hosts.yml`, host_vars;
-- `ansible all -m ping`, `playbooks/verify.yml`;
-- стоп, если хост недоступен.
+- `inventory/hosts.yml`: `entry_split_01`, `entry_full_01`, `exit_01`, `exit_02`;
+- `ansible/.env` + `verify_env.yml`;
+- `ansible all -m ping`, `playbooks/verify.yml`.
 
 ## Агент 2: Секреты и ключи
 
-- каталог `~/.config/vpn-gen/wireguard/` вне git;
-- ключи: entry_split client/transit, exit transit, initial client;
-- `wg-secrets-init.sh`, `public-vars.yml` без приватных значений;
-- `git status` не показывает `*.private.key`.
+- `~/.config/vpn-gen/wireguard/` вне git;
+- ключи: entry_split client/transit (+ client_2/transit_2 при dual-exit), exit_01/exit_02 transit;
+- `wg-secrets-init.sh`, `public-vars.yml` без приватных значений.
 
 ## Агент 3: common_network_base
 
-- пакеты: wireguard, nftables, iproute2, curl;
-- `net.ipv4.ip_forward=1`, nftables enabled;
+- wireguard, nftables, iproute2; `ip_forward=1`;
 - **без** VPN-интерфейсов.
 
 ## Агент 4: exit
 
-- роль `roles/exit`;
-- `wg-transit`, опционально `wg-exit-full` для full entry;
-- nftables NAT/forward для `10.60.0.0/24` и `10.80.0.0/24`;
-- проверки: `wg show`, `ip route get 10.60.0.10`.
+- роль `roles/exit` на `exit_01` и `exit_02`;
+- exit_01: `wg-transit` (`10.60.0.0/24`) + опционально full entry;
+- exit_02: `wg-transit` (`10.61.0.0/24`), `exit_public_interface` из host_vars;
+- nftables NAT/forward.
 
 ## Агент 5: entry_split
 
-- роль `roles/entry_split`;
-- `wg-client` + `wg-transit`, table 200, fwmark 0x2;
+- `wg-client` + `wg-transit` (lane 1);
+- при `entry_split_dual_exit_enabled`: `wg-client-2` + `wg-transit-2`;
+- tables 200/201, fwmark 0x2/0x4;
 - nftables: ru4, bypass, mark, masquerade;
-- проверки: `ip rule`, table 200, ru4 в ruleset.
+- dnsmasq на обеих lane;
+- `meta: flush_handlers` перед dnsmasq; nft reload через `nft -f`.
 
 ## Агент 6: GeoIP / RU CIDR
 
-- скрипт `update-ru-zone.sh` на контроллере (live);
-- опционально: systemd timer на entry (future);
-- reload nft set без простоя SSH.
+- `update-ru-zone.sh` на контроллере;
+- reload nft set `ru4`.
 
 ## Агент 7: Клиенты
 
-- `wg-client` / `client_config.yml`;
-- peer на entry, `.conf` + QR;
-- handshake в `wg show`.
+- `wg-client add/sync` — lane group `split`;
+- `.conf` + QR для `split` и `split2`;
+- handshake в `wg show wg-client` / `wg-client-2`.
 
 ## Агент 8: Валидация
 
 - `validate_cascade.yml`;
-- E2E: RU → entry IP, non-RU → exit IP;
-- outage test: stop exit transit.
+- E2E lane 2 (reference): non-RU → exit_02;
+- outage test: stop transit на exit.
 
 ## Порядок выполнения
 
 1. Inventory + verify  
-2. Secrets  
+2. Secrets (+ dual-exit keys)  
 3. common_network_base  
-4. exit  
+4. exit (`exit_01`, `exit_02`)  
 5. entry_split (+ entry_full при необходимости)  
 6. RU zone refresh  
-7. Clients  
+7. `wg-client sync --profile split`  
 8. Validation  
 
 ## Milestones
 
 | Этап | Содержание |
 |------|------------|
-| M1 Transit | только wg-transit entry↔exit |
-| M2 Client VPN | wg-client, smoke all-via-entry |
+| M1 Transit | wg-transit entry↔exit |
+| M2 Client VPN | wg-client, smoke |
 | M3 Policy split | ru4 + mark + exit path |
-| M4 Hardening | validate/rollback playbooks, wg-client |
+| M4 Dual-exit | wg-client-2, exit_02, split2 profile |
+| M5 Hardening | validate/rollback, wg-client lane groups |
 
 ## Ограничения для агентов
 
 - не коммитить приватные ключи;
 - не ломать SSH без запасного доступа;
-- не затирать весь nftables без backup;
+- после `entry_split.yml` — `wg-client sync`;
 - не использовать auto-route injection WireGuard на transit;
 - не допускать fallback non-RU через entry при мёртвом exit.

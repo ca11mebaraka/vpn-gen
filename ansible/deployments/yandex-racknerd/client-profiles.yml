@@ -1,9 +1,9 @@
-# Reference deployment: Yandex Cloud entry nodes + Racknerd exit.
-# This is the live environment used during development.
+# Reference deployment: cloud.ru split entry + Yandex full entry + dual exit.
 
 profiles:
   split:
-    description: Split-routing entry (cloud.ru)
+    description: Split-routing entry lane 1 (exit_01)
+    lane_group: split
     ssh_user: user1
     ssh_host: 176.123.164.26
     ssh_key: ~/.ssh/yc_vm_ed25519
@@ -13,6 +13,20 @@ profiles:
     endpoint_port: 53774
     network: 10.60.0.0/24
     default_dns: 10.60.0.1
+    default_mtu: 1280
+
+  split2:
+    description: Split-routing entry lane 2 (exit_02)
+    lane_group: split
+    ssh_user: user1
+    ssh_host: 176.123.164.26
+    ssh_key: ~/.ssh/yc_vm_ed25519
+    interface: wg-client-2
+    server_public_key: B4fFk3x9UPb/xUbmXRtkPKnfs5FxvS5hxR2RLmS2Ci4=
+    endpoint_host: 176.123.164.26
+    endpoint_port: 54774
+    network: 10.61.0.0/24
+    default_dns: 10.61.0.1
     default_mtu: 1280
 
   full:

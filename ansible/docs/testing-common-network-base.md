@@ -13,7 +13,7 @@ ANSIBLE_LOCAL_TEMP="$PWD/.ansible-tmp" ansible-playbook playbooks/common_network
 rmdir .ansible-tmp
 ```
 
-Inventory должен видеть хосты (`entry_split_01`, `exit_01`, …).
+Inventory должен видеть хосты (`entry_split_01`, `exit_01`, `exit_02`, …).
 
 ## Check-mode
 

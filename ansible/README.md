@@ -24,14 +24,17 @@ source scripts/load-env.sh
 |------------|------------|
 | `VPN_GEN_ENTRY_SPLIT_HOST` | IP split entry |
 | `VPN_GEN_ENTRY_FULL_HOST` | IP full entry |
-| `VPN_GEN_EXIT_HOST` | IP exit |
+| `VPN_GEN_EXIT_HOST` | IP exit lane 1 (`exit_01`) |
+| `VPN_GEN_EXIT2_HOST` | IP exit lane 2 (`exit_02`), dual-exit split |
 | `VPN_GEN_SSH_KEY_ENTRY` | приватный SSH-ключ для entry (`~/.ssh/...`) |
-| `VPN_GEN_SSH_KEY_EXIT` | приватный SSH-ключ для exit |
+| `VPN_GEN_SSH_KEY_EXIT` | приватный SSH-ключ для exit_01 |
+| `VPN_GEN_SSH_KEY_EXIT2` | приватный SSH-ключ для exit_02 |
+| `VPN_GEN_ENTRY_SPLIT_CLIENT_PORT_2` | UDP-порт lane 2 (`54774`) |
 | `VPN_GEN_WG_SECRET_DIR` | каталог WG-ключей split/exit transit (по умолчанию `$HOME/.config/vpn-gen/wireguard`) |
 | `VPN_GEN_WG_ENTRY_FULL_SECRET_DIR` | каталог ключей full entry |
 | `VPN_GEN_RU_ZONE_FILE` | файл GeoIP для split (`ru.zone`) |
 | `VPN_GEN_DEPLOYMENT` | имя деплоя для `wg-client` (например `reference` или `yandex-racknerd`) |
-| `VPN_GEN_EXIT_ENTRY_FULL_ENABLED` | `true` только если exit обслуживает и split, и full entry (3 узла) |
+| `VPN_GEN_EXIT_ENTRY_FULL_ENABLED` | `true` только если exit_01 обслуживает и split lane 1, и full entry |
 
 Универсальный шаблон — [`.env.example`](.env.example) (везде `deploy`). Частный Yandex + Racknerd — [`deployments/yandex-racknerd/.env.example`](deployments/yandex-racknerd/.env.example).
 
@@ -117,9 +120,10 @@ flowchart LR
 
 | Схема | Серверов | Когда |
 |-------|----------|-------|
-| **Базовая** | 1 entry (split) + 1 exit | Рекомендуется для большинства |
+| **Базовая** | 1 entry (split) + 1 exit | Single-exit split |
+| **Dual-exit split** | 1 entry (split) + 2 exit | Два выхода: lane 1 / lane 2 (reference) |
 | **Полный выход** | 1 entry (full) + 1 exit | Весь трафик только через exit |
-| **Два входа** | split + full + 1 exit | Разные профили для разных людей (как в reference) |
+| **Два входа** | split + full + exit(ы) | Разные профили для разных людей (как в reference) |
 
 ### Шаг 2. Настройте SSH-доступ
 
@@ -151,8 +155,9 @@ ssh-ed25519 AAAA...xyz vpn-gen
 
 | Переменная | Пример | Ваше значение |
 |------------|--------|---------------|
-| `IP_ENTRY` | `51.250.14.221` | IP сервера entry |
-| `IP_EXIT` | `172.245.154.109` | IP сервера exit |
+| `IP_ENTRY` | `176.123.164.26` | IP split entry (reference) |
+| `IP_EXIT` | `172.245.154.109` | IP exit_01 |
+| `IP_EXIT2` | `87.199.207.184` | IP exit_02 (lane 2) |
 | `SSH_KEY` | `~/.ssh/vpn-gen_ed25519` | путь к **приватному** ключу на Mac |
 | `DEPLOY_USER` | `deploy` | имя пользователя на сервере (можно другое, но одинаковое в inventory) |
 
@@ -163,8 +168,8 @@ ssh-ed25519 AAAA...xyz vpn-gen
 
 | Провайдер | Первый вход | Пример |
 |-----------|-------------|--------|
-| Yandex Cloud | пользователь `yc-user`, ключ задаётся при создании VM | `ssh -i ~/.ssh/yc_vm_ed25519 yc-user@51.250.14.221` |
-| Другой VPS | часто `root` по паролю из письма или по ключу | `ssh root@51.250.14.221` |
+| cloud.ru / другой VPS | пользователь из панели (`user1`, `deploy`, …) | `ssh -i ~/.ssh/yc_vm_ed25519 user1@176.123.164.26` |
+| Yandex Cloud (full entry) | `yc-user` | `ssh -i ~/.ssh/yc_vm_ed25519 yc-user@89.169.158.239` |
 
 **На сервере entry** (под `root` или под пользователем с `sudo`) выполните одним блоком — подставьте содержимое **вашего** `vpn-gen_ed25519.pub`:
 
@@ -185,7 +190,7 @@ chmod 440 "/etc/sudoers.d/$DEPLOY_USER"
 **На Mac** проверьте вход **уже под `deploy`**, без пароля:
 
 ```sh
-ssh -i ~/.ssh/vpn-gen_ed25519 deploy@51.250.14.221 'whoami && sudo -n true && echo OK'
+ssh -i ~/.ssh/vpn-gen_ed25519 deploy@176.123.164.26 'whoami && sudo -n true && echo OK'
 ```
 
 Ожидается: `deploy`, затем `OK`. Если `Permission denied` — ключ или `authorized_keys` настроены неверно.
@@ -214,8 +219,9 @@ ssh -i ~/.ssh/vpn-gen_ed25519 deploy@172.245.154.109 'whoami && sudo -n true && 
 Оба сервера должны отвечать:
 
 ```sh
-ssh -i ~/.ssh/vpn-gen_ed25519 deploy@51.250.14.221 'hostname; uptime'
-ssh -i ~/.ssh/vpn-gen_ed25519 deploy@172.245.154.109 'hostname; uptime'
+ssh -i ~/.ssh/yc_vm_ed25519 user1@176.123.164.26 'hostname; uptime'
+ssh -i ~/.ssh/vps_172_245_154_109_ed25519 deploy@172.245.154.109 'hostname; uptime'
+ssh -i ~/.ssh/yc_vm_ed25519 root@87.199.207.184 'hostname; uptime'
 ```
 
 Сохраните для следующего шага — в **`ansible/.env`** (не в inventory):
@@ -264,7 +270,7 @@ flowchart LR
 ### Шаг 3. Опишите серверы в inventory
 
 Отредактируйте [`inventory/hosts.yml`](inventory/hosts.yml) — укажите IP и пользователей.  
-Дополните [`inventory/host_vars/entry_split_01.yml`](inventory/host_vars/entry_split_01.yml) и [`inventory/host_vars/exit_01.yml`](inventory/host_vars/exit_01.yml) (пути к SSH-ключам, заметки).
+Дополните [`inventory/host_vars/entry_split_01.yml`](inventory/host_vars/entry_split_01.yml), [`exit_01.yml`](inventory/host_vars/exit_01.yml) и при dual-exit — [`exit_02.yml`](inventory/host_vars/exit_02.yml) (публичные ключи WG, `entry_split_dual_exit_enabled`, интерфейсы).
 
 Если нужен только split + exit, группу `entry_full` можно не трогать и не запускать её плейбук.
 
@@ -332,11 +338,12 @@ flowchart LR
 
 ```sh
 ansible-playbook playbooks/common_network_base.yml
-ansible-playbook playbooks/exit.yml
+ansible-playbook playbooks/exit.yml          # exit_01 + exit_02
 ansible-playbook playbooks/entry_split.yml
-# только если нужен второй вход:
+# только если нужен full entry:
 # ansible-playbook playbooks/entry_full.yml
 ansible-playbook playbooks/validate_cascade.yml
+./scripts/wg-client sync --profile split   # восстановить клиентов после entry_split
 ```
 
 Каждый шаг можно сначала посмотреть без изменений: добавьте `--check --diff` к команде.
@@ -346,7 +353,7 @@ ansible-playbook playbooks/validate_cascade.yml
 ```sh
 ./scripts/wg-client profiles
 ./scripts/wg-client add ivan-laptop --profile split
-./scripts/wg-client qr ivan-laptop --profile split
+./scripts/wg-client qr ivan-laptop --profile split2   # lane 2 — рекомендуется в reference
 ```
 
 Файл конфигурации появится в `~/Downloads/`. QR-код — для приложения WireGuard на телефоне.  
@@ -386,7 +393,8 @@ sequenceDiagram
 | `ansible ping` не проходит | SSH-ключ, firewall, IP в `hosts.yml` |
 | Туннель не поднимается | UDP-порт WireGuard открыт на entry, верный `.conf` |
 | Интернет не открывается | `./scripts/wg-client list --remote`, затем `validate_cascade.yml` |
-| После плейбука пропали клиенты | `./scripts/wg-client sync --profile split` |
+| После плейбука пропали клиенты | `./scripts/wg-client sync --profile split` (обе lane) |
+| Lane 1: зарубеж не работает | Используйте `split2` / проверьте UDP entry→exit_01 |
 
 Откат: [`docs/validation-and-rollback.md`](docs/validation-and-rollback.md).
 
@@ -525,8 +533,8 @@ flowchart TB
 
 | Что делаем | Зачем | Команда |
 |------------|-------|---------|
-| Список серверов | Показывает профили `split` и `full` из файла deployment | `./scripts/wg-client profiles` |
-| Добавить человека | Создаёт личный ключ, прописывает на сервере, выдаёт файл настроек | `./scripts/wg-client add <имя> --profile split` |
+| Список серверов | Показывает профили `split`, `split2`, `full` | `./scripts/wg-client profiles` |
+| Добавить человека | Создаёт ключ, peers на lane 1+2, выдаёт `.conf` | `./scripts/wg-client add <имя> --profile split` |
 | Файл настроек | Пересохраняет `.conf` для импорта в WireGuard | `./scripts/wg-client export <имя> --profile split` |
 | QR-код | Картинка для быстрого подключения с телефона | `./scripts/wg-client qr <имя> --profile split` |
 | Изменить настройки | Меняет DNS, MTU или IP и обновляет сервер | `./scripts/wg-client edit <имя> --profile split` |
@@ -554,7 +562,7 @@ cd ansible
 
 Подробности: [`deployments/yandex-racknerd/README.md`](deployments/yandex-racknerd/README.md).
 
-Имена хостов в inventory: `entry_split_01`, `entry_full_01`, `exit_01`. IP, SSH-пользователи и ключи — в **`ansible/.env`** (шаблон [`.env.example`](.env.example)).
+Имена хостов в inventory: `entry_split_01`, `entry_full_01`, `exit_01`, `exit_02`. IP, SSH-пользователи и ключи — в **`ansible/.env`** (reference: [`deployments/yandex-racknerd/.env.example`](deployments/yandex-racknerd/.env.example)).
 
 ## Документация
 
