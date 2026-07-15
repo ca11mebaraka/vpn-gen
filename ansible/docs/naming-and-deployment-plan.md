@@ -57,8 +57,8 @@ Lane group `split`: профили `split` + `split2` — один ключ, з�
 - SSH-пользователи и пути к ключам;
 - метаданные облака (провайдер, регион);
 - публичные ключи WireGuard и endpoint'ы;
-- DNS-upstream, имя публичного интерфейса (`enp3s0`, `ens3`, `eth0`);
-- `entry_split_dual_exit_enabled`, transit listen-порты;
+- DNS-upstream (`1.1.1.1` / `8.8.8.8` на cloud.ru), имя публичного интерфейса (`enp3s0`, `ens3`, `eth0`);
+- `entry_split_dual_exit_enabled`, transit listen-порты (`49251` / `49249` на reference cloud.ru);
 - абсолютные пути под `~/.config/vpn-gen/` на Mac оператора.
 
 Текущий живой частный случай: [`deployments/yandex-racknerd/README.md`](../deployments/yandex-racknerd/README.md) (split entry на cloud.ru, full на Yandex, exit_01 Racknerd, exit_02 VPS).

@@ -101,6 +101,16 @@ for var in VPN_GEN_ENTRY_SPLIT_HOST VPN_GEN_EXIT_HOST VPN_GEN_DEPLOYMENT; do
   fi
 done
 
+if [[ $profile == yandex-racknerd ]]; then
+  for var in VPN_GEN_EXIT2_HOST VPN_GEN_EXIT2_SSH_USER; do
+    if [[ -n "${!var:-}" ]]; then
+      pass "$var=${!var}"
+    else
+      fail "$var пуст (нужен для dual-exit)"
+    fi
+  done
+fi
+
 if [[ $profile == generic ]]; then
   for user_var in VPN_GEN_ENTRY_SPLIT_SSH_USER VPN_GEN_ENTRY_FULL_SSH_USER VPN_GEN_EXIT_SSH_USER; do
     if [[ "${!user_var:-deploy}" == deploy ]]; then

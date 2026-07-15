@@ -79,7 +79,7 @@ flowchart LR
 | split lane 1 клиенты | `53774` |
 | split lane 2 клиенты | `54774` |
 | transit split на exit | `51821` |
-| transit split listen на entry (cloud.ru) | `49248` / `49249` (ephemeral — см. host_vars) |
+| transit split listen на entry (cloud.ru) | `49251` / `49249` (ephemeral — см. host_vars) |
 | full клиенты | `51944` |
 | transit full entry | `51945` |
 | exit full | `51946` |
@@ -128,7 +128,9 @@ flowchart LR
 ## DNS
 
 - Клиентам lane 1: DNS `10.60.0.1`; lane 2: DNS `10.61.0.1`.
-- На entry: `dnsmasq` на `wg-client` + `wg-client-2` (`bind-interfaces`), upstream из `entry_split_dns_upstreams`, `filter-AAAA`.
+- На entry: `dnsmasq` на `wg-client` + `wg-client-2` (`bind-interfaces`), `no-resolv`, `bogus-priv`, `filter-AAAA`, кэш 1000.
+- Upstream (reference cloud.ru): `1.1.1.1`, `8.8.8.8` — задаётся в `entry_split_dns_upstreams` (`host_vars/entry_split_01.yml`).
+- Проверка с entry: `dig @10.61.0.1 google.com`, `dig @10.61.0.1 yandex.ru`.
 - Маршрутизация по **IP после DNS**; CDN могут отдавать разные адреса — это ограничение IP-based split.
 
 ## nftables
@@ -182,8 +184,9 @@ sudo wg show wg-client wg-client-2 wg-transit wg-transit-2
 
 ## Известные ограничения (reference-деплой)
 
-- **cloud.ru entry:** egress UDP с «красивых» портов (51821 и т.п.) может блокироваться — для transit на entry используются ephemeral listen-порты (`49248`, `49249`), см. `entry_split_01.yml`.
-- **Между cloud.ru и Racknerd:** UDP entry → exit_01 может не проходить на уровне провайдеров; lane 2 через exit_02 — рабочий резервный путь.
+- **cloud.ru entry / transit UDP:** egress с «красивых» портов (51821 и т.п.) может блокироваться. Для transit listen на entry используются ephemeral-порты (`49251` lane 1, `49249` lane 2) — см. `entry_split_01.yml`. Порт `49248` дропался на пути к Racknerd; после смены на `49251` lane 1 снова работает. При повторной поломке — подобрать другой ephemeral (проба `nc -u -p <port> exit:51821` + tcpdump на exit).
+- **Резервный путь:** lane 2 (`split2`) через `exit_02` — альтернатива, если lane 1 снова деградирует.
+- **`.env` dual-exit:** для `ansible-playbook entry_split.yml` обязателен `VPN_GEN_EXIT2_HOST` (иначе nftables bypass-set ломается).
 - **exit_02:** публичный интерфейс может называться `ens3`, не `eth0` — задаётся в `inventory/host_vars/exit_02.yml`.
 
 ## Вне scope первой версии

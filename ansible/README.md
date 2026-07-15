@@ -25,7 +25,7 @@ source scripts/load-env.sh
 | `VPN_GEN_ENTRY_SPLIT_HOST` | IP split entry |
 | `VPN_GEN_ENTRY_FULL_HOST` | IP full entry |
 | `VPN_GEN_EXIT_HOST` | IP exit lane 1 (`exit_01`) |
-| `VPN_GEN_EXIT2_HOST` | IP exit lane 2 (`exit_02`), dual-exit split |
+| `VPN_GEN_EXIT2_HOST` | IP exit lane 2 — **обязателен** при `entry_split_dual_exit_enabled` |
 | `VPN_GEN_SSH_KEY_ENTRY` | приватный SSH-ключ для entry (`~/.ssh/...`) |
 | `VPN_GEN_SSH_KEY_EXIT` | приватный SSH-ключ для exit_01 |
 | `VPN_GEN_SSH_KEY_EXIT2` | приватный SSH-ключ для exit_02 |
@@ -394,7 +394,9 @@ sequenceDiagram
 | Туннель не поднимается | UDP-порт WireGuard открыт на entry, верный `.conf` |
 | Интернет не открывается | `./scripts/wg-client list --remote`, затем `validate_cascade.yml` |
 | После плейбука пропали клиенты | `./scripts/wg-client sync --profile split` (обе lane) |
-| Lane 1: зарубеж не работает | Используйте `split2` / проверьте UDP entry→exit_01 |
+| Lane 1: зарубеж не работает | `sudo wg show wg-transit` — handshake и listen `49251`; см. [cascade-vpn-architecture.md](docs/cascade-vpn-architecture.md); обход: `split2` |
+| DNS не резолвится | В конфиге `10.60.0.1` / `10.61.0.1`; на entry `dig @10.61.0.1 yandex.ru` |
+| `entry_split.yml` падает на nftables | Добавьте `VPN_GEN_EXIT2_HOST` в `.env` (dual-exit) |
 
 Откат: [`docs/validation-and-rollback.md`](docs/validation-and-rollback.md).
 

@@ -79,9 +79,21 @@ ansible entry_full_01 -m command -a 'wg show wg0'
 
 E2E с клиента:
 
-- lane 1 (`split`): RU → IP entry; non-RU → IP exit_01 (если transit жив)
-- lane 2 (`split2`): RU → IP entry; non-RU → IP exit_02
+- lane 1 (`split`): RU → IP entry; non-RU → IP exit_01 (transit listen `49251` на entry)
+- lane 2 (`split2`): RU → IP entry; non-RU → IP exit_02 (transit listen `49249` на entry)
+- DNS: `dig @10.61.0.1` / `dig @10.60.0.1` с entry
 - падение transit → non-RU fail-closed
+
+Диагностика UDP entry→exit (lane 1):
+
+```sh
+# на entry — egress
+sudo tcpdump -ni enp3s0 'host <exit_ip> and udp port 51821'
+# на exit — ingress
+sudo tcpdump -ni eth0 'host <entry_ip> and udp port 51821'
+```
+
+Если egress есть, ingress нет — смените `entry_split_wg_transit_listen_port` в `host_vars` (см. architecture doc).
 
 ## Ручной откат на хосте
 

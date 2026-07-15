@@ -58,8 +58,8 @@ entry_split_dns_interface: "{{ entry_split_wg_client_interface }}"
 entry_split_dns_listen_address: "10.60.0.1"
 entry_split_dns_2_listen_address: "10.61.0.1"
 entry_split_dns_upstreams:
-  - "10.128.0.2"
   - "1.1.1.1"
+  - "8.8.8.8"
 
 # Provide either a list directly or a controller-local file with one CIDR per
 # line. The live first entry node uses a populated ru4 set for split routing.

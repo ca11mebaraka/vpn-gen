@@ -60,7 +60,10 @@ VPN_GEN_WG_CLIENT_ENDPOINT_PORT="53774"
 VPN_GEN_ENTRY_SPLIT_CLIENT_PORT_2="54774"
 VPN_GEN_EXIT_TRANSIT_PORT="51821"
 VPN_GEN_EXIT2_TRANSIT_PORT="51821"
+VPN_GEN_EXIT2_HOST="87.199.207.184"   # обязателен для dual-exit entry_split
 ```
+
+DNS upstream на entry задаётся в `inventory/host_vars/entry_split_01.yml` (`entry_split_dns_upstreams`). Reference cloud.ru: `1.1.1.1`, `8.8.8.8`. Transit listen-порты lane 1/2 — там же (`49251` / `49249`).
 
 Пути в `inventory/host_vars/` строятся из `$HOME/.config/vpn-gen/...` — **не прописывайте** `/Users/<имя>/...` в git.
 

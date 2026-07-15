@@ -8,8 +8,10 @@ host_notes:
 
 entry_split_wg_client_listen_port: "{{ vpn_gen_entry_split_client_port }}"
 # cloud.ru blocks egress UDP from ports like 51821/58291; use ephemeral listen port.
-entry_split_wg_transit_listen_port: 49248
+# 49248 was dropped on path to Racknerd; 49251 verified working.
+entry_split_wg_transit_listen_port: 49251
 entry_split_public_interface: enp3s0
+# dnsmasq upstream for 10.60.0.1 and 10.61.0.1
 entry_split_dns_upstreams:
   - "1.1.1.1"
   - "8.8.8.8"

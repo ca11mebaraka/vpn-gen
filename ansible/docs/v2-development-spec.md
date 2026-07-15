@@ -105,7 +105,7 @@ flowchart TB
 | `host_notes`, cloud metadata в inventory | документация в vars | deployment README |
 | Live WG peers/keys в `inventory/host_vars/` | утечка live-состояния | deployment overlay или `wg-client sync` |
 | Default имена ключей `yandex_*`, `racknerd_*` | vendor в core | нейтральные имена (§5.3) |
-| DNS `10.128.0.2` в role defaults | Yandex metadata | env `VPN_GEN_ENTRY_SPLIT_DNS_UPSTREAMS` |
+| DNS `10.128.0.2` в role defaults | Yandex metadata | env / host_vars `entry_split_dns_upstreams` (v1 reference: `1.1.1.1`, `8.8.8.8`) |
 | `inventory/group_vars/all/main.yml` `ansible_user: deploy` | дублирует group_vars + env | только per-group env |
 | Дубли `ansible.cfg` `remote_user` | см. выше | один механизм |
 

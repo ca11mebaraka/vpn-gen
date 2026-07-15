@@ -10,6 +10,8 @@
       - VPN_GEN_EXIT_HOST
     vpn_gen_optional_env:
       - VPN_GEN_ENTRY_FULL_HOST
+      - VPN_GEN_EXIT2_HOST
+      - VPN_GEN_EXIT2_SSH_USER
       - VPN_GEN_ENTRY_SPLIT_SSH_USER
       - VPN_GEN_ENTRY_FULL_SSH_USER
       - VPN_GEN_EXIT_SSH_USER
@@ -26,6 +28,17 @@
           Set {{ item }} in ansible/.env (see .env.example).
           Load with: source scripts/load-env.sh
       loop: "{{ vpn_gen_required_env }}"
+
+    - name: Assert exit_02 is configured when dual-exit deployment is used
+      ansible.builtin.assert:
+        that:
+          - hostvars['exit_02'].ansible_host | length > 0
+          - hostvars['exit_02'].ansible_user | length > 0
+        fail_msg: >-
+          Dual-exit split requires VPN_GEN_EXIT2_HOST and VPN_GEN_EXIT2_SSH_USER in .env
+          (empty ansible_host on exit_02 breaks entry_split nftables bypass-set).
+      when:
+        - hostvars['entry_split_01'].entry_split_dual_exit_enabled | default(false) | bool
 
     - name: Show resolved SSH users per host group
       ansible.builtin.debug:

@@ -24,7 +24,7 @@
 # синхронизирует всех клиентов lane group на обе lane
 ```
 
-Для новых клиентов в reference-деплое рекомендуется **lane 2** (`split2`) — рабочий exit через `exit_02`.
+В reference-деплое оба lane рабочие. Для новых клиентов (особенно Keenetic/роутеры) удобнее **lane 2** (`split2`); lane 1 (`split`) — через Racknerd после фикса transit-порта `49251`.
 
 Ключи клиентов и реестр хранятся локально в `~/.config/vpn-gen/wg-client-admin/` и **не попадают в git**. На сервере peer добавляется в `/etc/wireguard/<interface>.conf` внутри маркеров `# wg-client-admin: begin <name>` … `# wg-client-admin: end <name>`.
 
@@ -199,4 +199,8 @@ ssh -i ~/.ssh/yc_vm_ed25519 user1@176.123.164.26 'sudo -n wg show wg-client-2'
 
 **После entry_split.yml пропали клиенты** — `./scripts/wg-client sync --profile split`.
 
-**Lane 1: зарубеж не работает, lane 2 OK** — см. [cascade-vpn-architecture.md](cascade-vpn-architecture.md) (UDP cloud.ru → Racknerd).
+**Lane 1: зарубеж не работает** — проверьте handshake `sudo wg show wg-transit` (должен быть `listening port: 49251`, peer с `latest handshake`). Если нет — см. [cascade-vpn-architecture.md](cascade-vpn-architecture.md) (UDP cloud.ru → Racknerd, смена ephemeral listen-порта). Временный обход: конфиг `split2`.
+
+**DNS не резолвится** — клиент должен использовать `10.60.0.1` / `10.61.0.1`; на entry: `dig @10.61.0.1 yandex.ru`, `systemctl status dnsmasq`.
+
+**Entry unreachable при `add`** — клиент создаётся локально в реестре; залейте на сервер позже: `./scripts/wg-client sync --profile split`.

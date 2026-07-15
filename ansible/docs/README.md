@@ -6,7 +6,7 @@
 | [Имена и деплой](naming-and-deployment-plan.md) | Концепции entry/exit, split2, lane groups |
 | [Секреты и конфиги клиента](secrets-and-client-config.md) | Ключи WireGuard вне git, dual-exit keys |
 | [Управление клиентами](wg-client-admin.md) | `wg-client`: split / split2 / full, QR, sync |
-| [Проверка и откат](validation-and-rollback.md) | validate_cascade, rollback, lane 2 |
+| [Проверка и откат](validation-and-rollback.md) | validate_cascade (dual-exit, DNS, handshake), rollback |
 | [Тестирование ролей WireGuard](testing-wireguard-roles.md) | Check-mode и live-проверки entry/exit |
 | [Тестирование базовой сети](testing-common-network-base.md) | Роль `common_network_base` |
 | [План оркестрации агентов](agent-orchestration-plan.md) | Пошаговый план для агентов/CI |

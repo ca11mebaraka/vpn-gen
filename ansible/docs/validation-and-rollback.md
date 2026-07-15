@@ -48,6 +48,9 @@ ansible-playbook -i inventory/hosts.yml playbooks/validate_cascade.yml
 
 ```sh
 sudo wg show wg-client wg-client-2 wg-transit wg-transit-2
+sudo wg show wg-transit | grep -E 'listening|handshake'
+sudo wg show wg-transit-2 | grep -E 'listening|handshake'
+dig @10.61.0.1 yandex.ru +short
 sudo nft list chain inet entry_split mark_client_traffic
 ping -c 2 10.70.0.2   # exit_01 transit
 ping -c 2 10.71.0.2   # exit_02 transit
@@ -62,6 +65,7 @@ ping -c 2 10.71.0.2   # exit_02 transit
 5. Сгенерировать трафик (локальный и «зарубежный» destination)
 6. Повторить validate и сравнить счётчики nftables
 7. Fail-closed: остановить transit на exit — «зарубежный» трафик lane должен пропасть, локальный — продолжить
+8. Transit handshake: на entry `wg-transit` (lane 1, listen `49251`) и `wg-transit-2` (lane 2, listen `49249`) — `latest handshake` не старше нескольких минут
 
 После `entry_split.yml`:
 

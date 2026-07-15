@@ -3,9 +3,12 @@
   hosts: all
   gather_facts: false
   vars:
+    entry_split_dual: "{{ hostvars[inventory_hostname].entry_split_dual_exit_enabled | default(false) | bool }}"
     expected_wg_interfaces: >-
       {{
-        ['wg-client', 'wg-transit']
+        (['wg-client', 'wg-client-2', 'wg-transit', 'wg-transit-2']
+         if entry_split_dual
+         else ['wg-client', 'wg-transit'])
         if inventory_hostname in groups.get('entry_split', [])
         else ['wg0', 'wg-transit']
         if inventory_hostname in groups.get('entry_full', [])
@@ -102,6 +105,8 @@
 - name: Validate split entry routing and policy
   hosts: entry_split
   gather_facts: false
+  vars:
+    entry_split_dual: "{{ entry_split_dual_exit_enabled | default(false) | bool }}"
 
   tasks:
     - name: Read entry policy routing rules
@@ -117,6 +122,14 @@
           - "'lookup 200' in entry_split_ip_rules.stdout or 'lookup wg_transit' in entry_split_ip_rules.stdout"
         fail_msg: "Expected entry policy rule 'fwmark 0x2 lookup 200/wg_transit' was not found."
 
+    - name: Assert entry fwmark rule for table 201 exists when dual-exit enabled
+      ansible.builtin.assert:
+        that:
+          - "'fwmark 0x4' in entry_split_ip_rules.stdout"
+          - "'lookup 201' in entry_split_ip_rules.stdout or 'lookup wg_transit_2' in entry_split_ip_rules.stdout"
+        fail_msg: "Expected entry policy rule 'fwmark 0x4 lookup 201/wg_transit_2' was not found."
+      when: entry_split_dual
+
     - name: Read entry policy routing table 200
       ansible.builtin.command: ip route show table 200
       become: true
@@ -130,17 +143,46 @@
           - "'dev wg-transit' in entry_split_table_200.stdout"
         fail_msg: "Expected table 200 default route through wg-transit was not found."
 
-    - name: Probe marked non-RU route decision
+    - name: Read entry policy routing table 201
+      ansible.builtin.command: ip route show table 201
+      become: true
+      changed_when: false
+      register: entry_split_table_201
+      when: entry_split_dual
+
+    - name: Assert entry table 201 routes default traffic to transit lane 2
+      ansible.builtin.assert:
+        that:
+          - "'default' in entry_split_table_201.stdout"
+          - "'dev wg-transit-2' in entry_split_table_201.stdout"
+        fail_msg: "Expected table 201 default route through wg-transit-2 was not found."
+      when: entry_split_dual
+
+    - name: Probe marked non-RU route decision lane 1
       ansible.builtin.command: ip route get 1.1.1.1 mark 0x2
       become: true
       changed_when: false
       register: entry_split_marked_route
 
-    - name: Assert marked non-RU probe uses transit
+    - name: Assert marked non-RU probe uses transit lane 1
       ansible.builtin.assert:
         that:
           - "'wg-transit' in entry_split_marked_route.stdout"
         fail_msg: "Marked route probe did not resolve through wg-transit."
+
+    - name: Probe marked non-RU route decision lane 2
+      ansible.builtin.command: ip route get 1.1.1.1 mark 0x4
+      become: true
+      changed_when: false
+      register: entry_split_marked_route_2
+      when: entry_split_dual
+
+    - name: Assert marked non-RU probe uses transit lane 2
+      ansible.builtin.assert:
+        that:
+          - "'wg-transit-2' in entry_split_marked_route_2.stdout"
+        fail_msg: "Marked route probe (0x4) did not resolve through wg-transit-2."
+      when: entry_split_dual
 
     - name: Read entry nftables ruleset
       ansible.builtin.command: nft list ruleset
@@ -159,13 +201,69 @@
           - "'counter' in entry_split_nft_ruleset.stdout"
         fail_msg: "Split entry nftables ruleset is missing expected split-routing, NAT, or counter expressions."
 
+    - name: Assert dual-exit nftables expressions are present
+      ansible.builtin.assert:
+        that:
+          - "'wg-client-2' in entry_split_nft_ruleset.stdout"
+          - "'wg-transit-2' in entry_split_nft_ruleset.stdout or '0x4' in entry_split_nft_ruleset.stdout"
+        fail_msg: "Dual-exit nftables rules (wg-client-2 / mark 0x4) were not found."
+      when: entry_split_dual
+
+    - name: Check wg-transit lane 1 handshake freshness
+      ansible.builtin.command: wg show wg-transit latest-handshakes
+      become: true
+      changed_when: false
+      register: wg_transit_handshakes
+
+    - name: Assert wg-transit lane 1 has recent handshake
+      ansible.builtin.assert:
+        that:
+          - wg_transit_handshakes.stdout.split() | length >= 2
+          - (wg_transit_handshakes.stdout.split() | last | int) > 0
+        fail_msg: "wg-transit lane 1 has no handshake — check UDP path and listen port (host_vars)."
+      when: not ansible_check_mode
+
+    - name: Check wg-transit lane 2 handshake freshness
+      ansible.builtin.command: wg show wg-transit-2 latest-handshakes
+      become: true
+      changed_when: false
+      register: wg_transit_2_handshakes
+      when: entry_split_dual
+
+    - name: Assert wg-transit lane 2 has recent handshake
+      ansible.builtin.assert:
+        that:
+          - wg_transit_2_handshakes.stdout.split() | length >= 2
+          - (wg_transit_2_handshakes.stdout.split() | last | int) > 0
+        fail_msg: "wg-transit-2 has no handshake."
+      when:
+        - entry_split_dual
+        - not ansible_check_mode
+
+    - name: Probe DNS on lane 2 listen address
+      ansible.builtin.command: dig +short @10.61.0.1 yandex.ru A
+      become: true
+      changed_when: false
+      register: entry_dns_lane2
+      when: entry_split_dual
+
+    - name: Assert lane 2 DNS resolver responds
+      ansible.builtin.assert:
+        that:
+          - entry_dns_lane2.stdout | trim | length > 0
+        fail_msg: "dnsmasq on 10.61.0.1 did not resolve yandex.ru."
+      when: entry_split_dual
+
 - name: Validate Exit node routing and NAT assumptions
   hosts: exit
   gather_facts: false
+  vars:
+    exit_probe_client_ip: "{{ (exit_client_cidr | default('10.60.0.0/24')).split('/')[0].rsplit('.', 1)[0] }}.10"
+    exit_expected_client_cidr: "{{ exit_client_cidr | default('10.60.0.0/24') }}"
 
   tasks:
     - name: Probe exit route back to client subnet
-      ansible.builtin.command: ip route get 10.60.0.10
+      ansible.builtin.command: "ip route get {{ exit_probe_client_ip }}"
       become: true
       changed_when: false
       register: exit_route_to_client
@@ -174,7 +272,7 @@
       ansible.builtin.assert:
         that:
           - "'wg-transit' in exit_route_to_client.stdout"
-        fail_msg: "exit route to 10.60.0.10 does not use wg-transit."
+        fail_msg: "exit route to {{ exit_probe_client_ip }} does not use wg-transit."
 
     - name: Read exit nftables ruleset
       ansible.builtin.command: nft list ruleset
@@ -186,7 +284,7 @@
       ansible.builtin.assert:
         that:
           - "'wg-transit' in exit_nft_ruleset.stdout"
-          - "'10.60.0.0/24' in exit_nft_ruleset.stdout"
+          - exit_expected_client_cidr in exit_nft_ruleset.stdout
           - "'masquerade' in exit_nft_ruleset.stdout"
           - "'counter' in exit_nft_ruleset.stdout"
         fail_msg: "exit nftables ruleset is missing expected transit NAT or counter expressions."
