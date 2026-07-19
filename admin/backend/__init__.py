@@ -1,0 +1,1 @@
+"""MyVPN administrator application."""

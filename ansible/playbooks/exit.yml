@@ -2,5 +2,7 @@
 - name: Configure exit WireGuard transit exit
   hosts: exit
   gather_facts: true
+  vars_files:
+    - "{{ lookup('env', 'VPN_GEN_WG_PUBLIC_VARS_FILE') }}"
   roles:
-    - role: ../roles/exit
+    - role: exit

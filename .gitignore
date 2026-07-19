@@ -21,6 +21,11 @@ client-*.conf
 # Ansible runtime artifacts
 *.retry
 .ansible/
+.venv/
+node_modules/
+admin/frontend/dist/
+admin/data/*.db*
+*.tsbuildinfo
 
 # Python and tooling caches
 __pycache__/
@@ -40,3 +45,8 @@ __pycache__/
 .env
 ansible/.env
 ansible/deployments/*/.env
+
+# MyVPN admin runtime state
+admin/.env
+admin/data/*.db
+admin/data/*.db-*

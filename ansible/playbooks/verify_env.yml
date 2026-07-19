@@ -8,6 +8,7 @@
     vpn_gen_required_env:
       - VPN_GEN_ENTRY_SPLIT_HOST
       - VPN_GEN_EXIT_HOST
+      - VPN_GEN_ADMIN_IPV4_CIDRS
     vpn_gen_optional_env:
       - VPN_GEN_ENTRY_FULL_HOST
       - VPN_GEN_ENTRY_SPLIT_SSH_USER
@@ -16,6 +17,25 @@
       - VPN_GEN_SSH_KEY_ENTRY
       - VPN_GEN_SSH_KEY_EXIT
       - VPN_GEN_DEPLOYMENT
+
+  pre_tasks:
+    - name: Refuse reference deployment for MyVPN
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'VPN_GEN_DEPLOYMENT') == 'my-vpn'
+        fail_msg: "Set VPN_GEN_DEPLOYMENT=my-vpn; reference deployments must never be used on our infrastructure."
+
+    - name: Refuse placeholders and documentation networks
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'VPN_GEN_ENTRY_SPLIT_HOST') is match('^(?!203\\.0\\.113\\.|198\\.51\\.100\\.|192\\.0\\.2\\.)[0-9.]+$')
+          - lookup('env', 'VPN_GEN_EXIT_HOST') is match('^(?!203\\.0\\.113\\.|198\\.51\\.100\\.|192\\.0\\.2\\.)[0-9.]+$')
+          - lookup('env', 'VPN_GEN_ENTRY_SPLIT_HOST') != lookup('env', 'VPN_GEN_EXIT_HOST')
+          - "'CHANGE_ME' not in lookup('env', 'VPN_GEN_ADMIN_IPV4_CIDRS')"
+          - lookup('env', 'VPN_GEN_ADMIN_IPV4_CIDRS') | length > 0
+          - lookup('env', 'VPN_GEN_ALLOW_WORLD_SSH') | default('false', true) | bool
+            or '0.0.0.0/0' not in lookup('env', 'VPN_GEN_ADMIN_IPV4_CIDRS')
+        fail_msg: "Use distinct real VPS IPv4 addresses and trusted controller CIDR(s); placeholders and world-open SSH are rejected."
 
   tasks:
     - name: Require essential environment variables

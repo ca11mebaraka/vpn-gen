@@ -4,6 +4,7 @@ host_notes:
   ssh_user: "{{ vpn_gen_exit_ssh_user }}"
   ssh_key: "{{ vpn_gen_ssh_key_exit }}"
 
-exit_entry_split_wg_transit_public_key: "Kd7rT5QGbKN8tkVuYmLEX2VkB7Qcs0+ZWXwgyd5GxkQ="
+exit_entry_split_wg_transit_public_key: ""
 
-exit_entry_full_public_key: "PFMIDXQfNBTcvz8rmODwcbsML3q5tg3k2ldGhJ7lkns="
+exit_entry_full_public_key: ""
+exit_public_interface: ens3

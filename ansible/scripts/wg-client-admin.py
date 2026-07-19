@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import copy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,7 @@ from typing import Any
 STATE_DIR = Path(os.environ.get("VPN_GEN_CLIENT_ADMIN_DIR", "~/.config/vpn-gen/wg-client-admin")).expanduser()
 REGISTRY_PATH = STATE_DIR / "clients.json"
 EXPORT_DIR = Path(os.environ.get("VPN_GEN_CLIENT_EXPORT_DIR", "~/Downloads")).expanduser()
+KNOWN_HOSTS = Path(os.environ.get("VPN_GEN_SSH_KNOWN_HOSTS", "~/.config/vpn-gen/ssh/known_hosts")).expanduser()
 
 class CommandError(RuntimeError):
     pass
@@ -41,7 +43,7 @@ def default_profiles_path() -> Path:
     env_path = os.environ.get("VPN_GEN_WG_CLIENT_PROFILES")
     if env_path:
         return Path(env_path).expanduser()
-    deployment = os.environ.get("VPN_GEN_DEPLOYMENT", "yandex-racknerd")
+    deployment = os.environ.get("VPN_GEN_DEPLOYMENT", "my-vpn")
     script_dir = Path(__file__).resolve().parent
     json_path = script_dir.parent / "deployments" / deployment / "client-profiles.json"
     if json_path.exists():
@@ -151,7 +153,9 @@ def ssh(profile: Profile, remote_command: str, *, input_text: str | None = None,
         "-i",
         str(profile.ssh_key),
         "-o",
-        "StrictHostKeyChecking=accept-new",
+        "StrictHostKeyChecking=yes",
+        "-o",
+        f"UserKnownHostsFile={KNOWN_HOSTS}",
         f"{profile.ssh_user}@{profile.ssh_host}",
         remote_command,
     ]
@@ -203,7 +207,8 @@ def genkey() -> tuple[str, str]:
 
 def default_allowed_ips(profile: Profile) -> str:
     endpoint = ipaddress.ip_network(f"{profile.endpoint_host}/32")
-    return ",".join(str(net) for net in ipaddress.ip_network("0.0.0.0/0").address_exclude(endpoint))
+    ipv4 = [str(net) for net in ipaddress.ip_network("0.0.0.0/0").address_exclude(endpoint)]
+    return ",".join([*ipv4, "::/0"])
 
 
 def allocate_ip(profile: Profile, registry: dict[str, Any]) -> str:
@@ -306,7 +311,9 @@ fi
             "-i",
             str(profile.ssh_key),
             "-o",
-            "StrictHostKeyChecking=accept-new",
+            "StrictHostKeyChecking=yes",
+            "-o",
+            f"UserKnownHostsFile={KNOWN_HOSTS}",
             str(local_script),
             f"{profile.ssh_user}@{profile.ssh_host}:{remote_script_path}",
         ]
@@ -400,6 +407,55 @@ def command_set_enabled(args: argparse.Namespace, enabled: bool) -> None:
     remote_apply_peer(profile, client, enabled=enabled)
     save_registry(registry)
     print(("enabled" if enabled else "disabled") + f" {key}")
+
+
+def command_remove(args: argparse.Namespace) -> None:
+    registry = load_registry()
+    key = registry_key(args.profile, args.name)
+    client = registry["clients"].get(key)
+    if not client:
+        raise CommandError(f"client not found: {key}")
+    if not args.confirm:
+        raise CommandError("removal requires --confirm")
+    profile = Profile.from_name(client["profile"])
+    remote_apply_peer(profile, client, enabled=False)
+    shutil.rmtree(client_dir(profile.name, client["name"]), ignore_errors=False)
+    del registry["clients"][key]
+    save_registry(registry)
+    print(f"removed {key}; previously exported configs and encrypted backups must be destroyed separately")
+
+
+def command_rotate(args: argparse.Namespace) -> None:
+    registry = load_registry()
+    key = registry_key(args.profile, args.name)
+    client = registry["clients"].get(key)
+    if not client:
+        raise CommandError(f"client not found: {key}")
+    profile = Profile.from_name(client["profile"])
+    old_client = copy.deepcopy(client)
+    old_private_key = read_private_key(old_client)
+    old_public_key = old_client["public_key"]
+    private_key, public_key = genkey()
+
+    remote_apply_peer(profile, old_client, enabled=False)
+    paths = write_key_files(profile.name, client["name"], private_key, public_key)
+    client["private_key_path"] = paths["private_key_path"]
+    client["public_key_path"] = paths["public_key_path"]
+    client["public_key"] = public_key
+    try:
+        remote_apply_peer(profile, client, enabled=bool(client["enabled"]))
+    except CommandError:
+        write_key_files(profile.name, client["name"], old_private_key, old_public_key)
+        try:
+            remote_apply_peer(profile, old_client, enabled=bool(old_client["enabled"]))
+        except CommandError:
+            pass
+        raise
+    registry["clients"][key] = client
+    save_registry(registry)
+    config_path = export_client(client, args.output)
+    print(f"rotated {key}")
+    print(f"new config: {config_path}")
 
 
 def command_list(args: argparse.Namespace) -> None:
@@ -518,6 +574,18 @@ def build_parser() -> argparse.ArgumentParser:
     enable_p.add_argument("name")
     enable_p.add_argument("--profile", choices=profile_choices(), default="split")
     enable_p.set_defaults(func=lambda args: command_set_enabled(args, True))
+
+    remove_p = sub.add_parser("remove", help="Revoke and permanently remove a managed client")
+    remove_p.add_argument("name")
+    remove_p.add_argument("--profile", choices=profile_choices(), default="split")
+    remove_p.add_argument("--confirm", action="store_true")
+    remove_p.set_defaults(func=command_remove)
+
+    rotate_p = sub.add_parser("rotate", help="Replace a client's WireGuard key pair")
+    rotate_p.add_argument("name")
+    rotate_p.add_argument("--profile", choices=profile_choices(), default="split")
+    rotate_p.add_argument("--output")
+    rotate_p.set_defaults(func=command_rotate)
 
     export_p = sub.add_parser("export", help="Write client config")
     export_p.add_argument("name")

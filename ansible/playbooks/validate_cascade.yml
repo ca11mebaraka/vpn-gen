@@ -60,12 +60,18 @@
         fail_msg: "Missing expected WireGuard interfaces: {{ expected_wg_interfaces | difference(wg_show_interfaces.stdout.split()) }}"
 
     - name: Check expected WireGuard service state
-      ansible.builtin.command: "systemctl is-active wg-quick@{{ item }}.service"
-      become: true
-      changed_when: false
-      register: wg_service_state
-      failed_when: wg_service_state.rc != 0
+      ansible.builtin.systemd_service:
+        name: "wg-quick@{{ item }}.service"
       loop: "{{ expected_wg_interfaces }}"
+      register: wg_service_states
+
+    - name: Assert expected WireGuard services are active
+      ansible.builtin.assert:
+        that:
+          - item.status.ActiveState == 'active'
+      loop: "{{ wg_service_states.results }}"
+      loop_control:
+        label: "{{ item.item }}"
 
     - name: Check expected WireGuard link state
       ansible.builtin.command: "ip link show dev {{ item }}"

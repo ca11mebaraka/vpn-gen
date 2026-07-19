@@ -28,6 +28,10 @@ entry_split_policy_table: 200
 entry_split_policy_rule_priority: 200
 entry_split_policy_fwmark: "0x2"
 entry_split_nftables_fragment: /etc/nftables.d/entry_split.nft
+entry_split_ssh_port: "{{ vpn_gen_ssh_port }}"
+entry_split_admin_ipv4_cidrs: "{{ vpn_gen_admin_ipv4_cidrs }}"
+entry_split_allow_world_ssh: "{{ vpn_gen_allow_world_ssh }}"
+entry_split_exit_public_ipv4: "{{ vpn_gen_exit_host }}"
 
 entry_split_dns_enabled: true
 entry_split_dns_interface: "{{ entry_split_wg_client_interface }}"

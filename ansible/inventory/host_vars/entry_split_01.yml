@@ -6,15 +6,8 @@ host_notes:
   ssh_key: "{{ vpn_gen_ssh_key_entry }}"
 
 entry_split_wg_client_listen_port: "{{ vpn_gen_entry_split_client_port }}"
+entry_split_public_interface: ens3
 
-entry_split_exit_wg_transit_public_key: "tHt+xqudJqKDXQIm3pgGDuvre7L3y1WkUKB7m0qgvFw="
+entry_split_exit_wg_transit_public_key: ""
 
-entry_split_wg_client_peers:
-  - name: initial-client
-    public_key: "NCohoPleSMUYW6Ug7OlMIGesrRH/WSkQtTwgGNhifB0="
-    allowed_ips:
-      - "10.60.0.10/32"
-  - name: fresh-client
-    public_key: "+zmZ9hoXnScAGVJiZ7aL5XjkP1BG75525fc0tXI220I="
-    allowed_ips:
-      - "10.60.0.11/32"
+entry_split_wg_client_peers: []

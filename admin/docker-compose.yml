@@ -1,0 +1,67 @@
+services:
+  myvpn_admin:
+    build:
+      context: ..
+      dockerfile: admin/Dockerfile
+    container_name: myvpn_admin
+    # Authentication secrets stay outside this repository.
+    env_file:
+      - path: ${MYVPN_SHARED_AUTH_ENV:-.env}
+        required: true
+    environment:
+      MYVPN_ADMIN_TELEGRAM_IDS: ${MYVPN_ADMIN_TELEGRAM_IDS}
+      MYVPN_ADMIN_PUBLIC_ORIGIN: ${MYVPN_ADMIN_PUBLIC_ORIGIN}
+      MYVPN_AUTH_BRIDGE_ORIGIN: ${MYVPN_AUTH_BRIDGE_ORIGIN}
+      MYVPN_CONTROLLER_NAME: ${MYVPN_CONTROLLER_NAME:-controller}
+      MYVPN_DEPLOYMENT: ${MYVPN_DEPLOYMENT:-reference}
+      MYVPN_ENTRY_HOST: ${MYVPN_ENTRY_HOST}
+      MYVPN_EXIT_HOST: ${MYVPN_EXIT_HOST}
+      MYVPN_INITIAL_OWNER: ${MYVPN_INITIAL_OWNER:-Initial owner}
+      MYVPN_REPO_ROOT: ${MYVPN_REPO_ROOT:-/workspace}
+      MYVPN_ANSIBLE_DIR: ${MYVPN_ANSIBLE_DIR:-/workspace/ansible}
+      MYVPN_CLIENT_ADMIN_DIR: ${MYVPN_CLIENT_ADMIN_DIR:-/run/myvpn/client-admin}
+      MYVPN_CLIENT_EXPORT_DIR: ${MYVPN_CLIENT_EXPORT_DIR:-/run/myvpn/client-exports}
+      MYVPN_SSH_KNOWN_HOSTS: ${MYVPN_SSH_KNOWN_HOSTS:-/run/myvpn/ssh/known_hosts}
+      MYVPN_ADMIN_DB: /app/data/admin.db
+      MYVPN_ADMIN_COOKIE_SECURE: "true"
+    volumes:
+      - ..:/workspace:ro
+      - ./data:/app/data
+      - ${MYVPN_SSH_HOST_DIR:-./secrets/ssh}:${MYVPN_SSH_DIR:-/run/myvpn/ssh}:ro
+      - ${MYVPN_CLIENT_ADMIN_HOST_DIR:-./secrets/client-admin}:${MYVPN_CLIENT_ADMIN_DIR:-/run/myvpn/client-admin}
+      - ${MYVPN_CLIENT_EXPORT_HOST_DIR:-./secrets/client-exports}:${MYVPN_CLIENT_EXPORT_DIR:-/run/myvpn/client-exports}
+    expose: ["8000"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    read_only: true
+    tmpfs: ["/tmp:mode=1777"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    networks: [lab_net]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=lab_net
+      - traefik.http.routers.myvpn.rule=Host(`${MYVPN_ADMIN_HOST:-myvpn.example.com}`)
+      - traefik.http.routers.myvpn.entrypoints=websecure
+      - traefik.http.routers.myvpn.tls.certresolver=letsencrypt
+      - traefik.http.routers.myvpn.middlewares=myvpn-security-headers
+      - traefik.http.services.myvpn.loadbalancer.server.port=8000
+      - traefik.http.routers.myvpn-telegram-relay.rule=Host(`${MYVPN_AUTH_BRIDGE_HOST:-auth.example.com}`) && Path(`/myvpn-telegram-relay`)
+      - traefik.http.routers.myvpn-telegram-relay.priority=200
+      - traefik.http.routers.myvpn-telegram-relay.entrypoints=websecure
+      - traefik.http.routers.myvpn-telegram-relay.tls.certresolver=letsencrypt
+      - traefik.http.routers.myvpn-telegram-relay.service=myvpn
+      - traefik.http.routers.myvpn-telegram-relay.middlewares=myvpn-security-headers
+      - traefik.http.middlewares.myvpn-security-headers.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.myvpn-security-headers.headers.frameDeny=true
+      - traefik.http.middlewares.myvpn-security-headers.headers.referrerPolicy=no-referrer
+      - traefik.http.middlewares.myvpn-security-headers.headers.stsSeconds=31536000
+      - traefik.http.middlewares.myvpn-security-headers.headers.stsIncludeSubdomains=true
+networks:
+  lab_net:
+    external: true

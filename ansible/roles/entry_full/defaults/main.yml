@@ -23,4 +23,7 @@ entry_full_client_cidr: 10.80.0.0/24
 entry_full_public_interface: eth0
 entry_full_policy_table: 210
 entry_full_policy_rule_priority: 210
-entry_full_nftables_conf: /etc/nftables.conf
+entry_full_nftables_fragment: /etc/nftables.d/entry_full.nft
+entry_full_ssh_port: "{{ vpn_gen_ssh_port }}"
+entry_full_admin_ipv4_cidrs: "{{ vpn_gen_admin_ipv4_cidrs }}"
+entry_full_allow_world_ssh: "{{ vpn_gen_allow_world_ssh }}"
