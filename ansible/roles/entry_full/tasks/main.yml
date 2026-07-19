@@ -3,6 +3,8 @@
   ansible.builtin.assert:
     that:
       - entry_full_exit_public_key | length > 0
+      - entry_full_admin_ipv4_cidrs | length > 0 or entry_full_allow_world_ssh | bool
+      - entry_full_allow_world_ssh | bool or '0.0.0.0/0' not in entry_full_admin_ipv4_cidrs
       - >
         (entry_full_wg_client_private_key | length > 0) or
         (entry_full_wg_client_private_key_path | length > 0)
@@ -69,14 +71,30 @@
   notify: Restart entry full transit
   no_log: true
 
-- name: Render entry full nftables configuration
+- name: Ensure nftables include directory exists
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render entry full nftables fragment
   ansible.builtin.template:
     src: nftables.conf.j2
-    dest: "{{ entry_full_nftables_conf }}"
+    dest: "{{ entry_full_nftables_fragment }}"
     owner: root
     group: root
     mode: "0644"
     validate: "nft -c -f %s"
+  notify: Reload nftables
+
+- name: Include entry full nftables fragment
+  ansible.builtin.lineinfile:
+    path: /etc/nftables.conf
+    line: 'include "{{ entry_full_nftables_fragment }}"'
+    create: false
+    backup: true
   notify: Reload nftables
 
 - name: Enable entry full client service

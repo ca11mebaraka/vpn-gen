@@ -1,0 +1,86 @@
+---
+- name: Bootstrap hardened deployment user on fresh VPS hosts
+  hosts: entry_split:exit
+  gather_facts: true
+  become: true
+  vars:
+    ansible_user: "{{ lookup('env', 'VPN_GEN_BOOTSTRAP_USER') }}"
+    ansible_ssh_private_key_file: "{{ lookup('env', 'VPN_GEN_BOOTSTRAP_SSH_KEY') }}"
+    bootstrap_deploy_user: deploy
+    bootstrap_public_key_file: "{{ lookup('env', 'VPN_GEN_DEPLOY_PUBLIC_KEY') }}"
+
+  pre_tasks:
+    - name: Require explicit bootstrap confirmation and inputs
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'VPN_GEN_CONFIRM_BOOTSTRAP') == 'yes'
+          - ansible_user | length > 0
+          - ansible_ssh_private_key_file | length > 0
+          - bootstrap_public_key_file | length > 0
+        fail_msg: "Set bootstrap user/key/public-key variables and VPN_GEN_CONFIRM_BOOTSTRAP=yes."
+      delegate_to: localhost
+      become: false
+
+  tasks:
+    - name: Create deployment user
+      ansible.builtin.user:
+        name: "{{ bootstrap_deploy_user }}"
+        shell: /bin/bash
+        create_home: true
+        groups: sudo
+        append: true
+
+    - name: Create deployment SSH directory
+      ansible.builtin.file:
+        path: "/home/{{ bootstrap_deploy_user }}/.ssh"
+        state: directory
+        owner: "{{ bootstrap_deploy_user }}"
+        group: "{{ bootstrap_deploy_user }}"
+        mode: "0700"
+
+    - name: Install the only authorized controller key for deployment user
+      ansible.builtin.copy:
+        dest: "/home/{{ bootstrap_deploy_user }}/.ssh/authorized_keys"
+        owner: "{{ bootstrap_deploy_user }}"
+        group: "{{ bootstrap_deploy_user }}"
+        mode: "0600"
+        content: "{{ lookup('ansible.builtin.file', bootstrap_public_key_file) | trim }}\n"
+
+    - name: Configure passwordless sudo for deployment user
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ bootstrap_deploy_user }}"
+        owner: root
+        group: root
+        mode: "0440"
+        validate: /usr/sbin/visudo -cf %s
+        content: "{{ bootstrap_deploy_user }} ALL=(ALL:ALL) NOPASSWD:ALL\n"
+
+    - name: Install SSH hardening drop-in
+      ansible.builtin.copy:
+        # OpenSSH uses the first value it reads. This must sort before the
+        # provider's 50-cloud-init.conf, which may enable password logins.
+        dest: /etc/ssh/sshd_config.d/00-vpn-gen-hardening.conf
+        owner: root
+        group: root
+        mode: "0644"
+        validate: /usr/sbin/sshd -t -f %s
+        content: |
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          PermitRootLogin no
+          PubkeyAuthentication yes
+          X11Forwarding no
+          AllowTcpForwarding no
+          PermitTunnel no
+      notify: Restart SSH
+
+    - name: Remove legacy late-loading SSH hardening drop-in
+      ansible.builtin.file:
+        path: /etc/ssh/sshd_config.d/99-vpn-gen-hardening.conf
+        state: absent
+
+  handlers:
+    - name: Restart SSH
+      ansible.builtin.service:
+        name: ssh
+        state: restarted

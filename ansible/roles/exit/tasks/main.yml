@@ -3,6 +3,8 @@
   ansible.builtin.assert:
     that:
       - exit_entry_split_wg_transit_public_key | length > 0
+      - exit_admin_ipv4_cidrs | length > 0 or exit_allow_world_ssh | bool
+      - exit_allow_world_ssh | bool or '0.0.0.0/0' not in exit_admin_ipv4_cidrs
       - >
         (exit_wg_transit_private_key | length > 0) or
         (exit_wg_transit_private_key_path | length > 0)
@@ -14,7 +16,8 @@
         (exit_entry_full_wg_private_key | length > 0) or
         (exit_entry_full_wg_private_key_path | length > 0)
     fail_msg: >-
-      Define exit transit public keys and provide exit private keys
+      Define exit transit public keys, trusted VPN_GEN_ADMIN_IPV4_CIDRS,
+      and provide exit private keys
       via Vault/extra-vars or *_private_key_path values outside git.
 
 - name: Use provided exit transit private key
@@ -88,17 +91,6 @@
     validate: "nft -c -f %s"
   notify: Reload nftables
 
-- name: Render exit exit-full nftables fragment
-  ansible.builtin.template:
-    src: exit_full.nft.j2
-    dest: "{{ exit_entry_full_nftables_fragment }}"
-    owner: root
-    group: root
-    mode: "0644"
-    validate: "nft -c -f %s"
-  notify: Reload nftables
-  when: exit_entry_full_enabled
-
 - name: Include exit nftables fragment
   ansible.builtin.lineinfile:
     path: /etc/nftables.conf
@@ -106,15 +98,6 @@
     create: false
     backup: true
   notify: Reload nftables
-
-- name: Include exit exit-full nftables fragment
-  ansible.builtin.lineinfile:
-    path: /etc/nftables.conf
-    line: 'include "{{ exit_entry_full_nftables_fragment }}"'
-    create: false
-    backup: true
-  notify: Reload nftables
-  when: exit_entry_full_enabled
 
 - name: Enable exit WireGuard transit service
   ansible.builtin.service:

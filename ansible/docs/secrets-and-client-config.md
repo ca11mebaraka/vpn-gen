@@ -11,7 +11,7 @@
   - `ansible/scripts/wg-secrets-init.sh`
   - `ansible/scripts/check-no-private-key-material.sh`
   - `ansible/scripts/validate-wireguard-workflow.sh`
-- Шаблон: `ansible/templates/client/initial-client.conf.j2`
+- Шаблон: `ansible/playbooks/templates/initial-client.conf.j2`
 - Плейбук: `ansible/playbooks/client_config.yml`
 
 Файл `public-vars.yml` содержит только публичные ключи и пути. **Значений приватных ключей там быть не должно.**

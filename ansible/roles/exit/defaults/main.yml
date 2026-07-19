@@ -16,8 +16,12 @@ exit_entry_split_allowed_ips:
 exit_client_cidr: 10.60.0.0/24
 exit_public_interface: eth0
 exit_nftables_fragment: /etc/nftables.d/exit_split.nft
+exit_ssh_port: "{{ vpn_gen_ssh_port }}"
+exit_admin_ipv4_cidrs: "{{ vpn_gen_admin_ipv4_cidrs }}"
+exit_allow_world_ssh: "{{ vpn_gen_allow_world_ssh }}"
+exit_entry_public_ipv4: "{{ vpn_gen_entry_split_host }}"
 
-exit_entry_full_enabled: true
+exit_entry_full_enabled: false
 exit_entry_full_wg_interface: wg-exit-full
 exit_entry_full_wg_address: 10.91.0.2/32
 exit_entry_full_wg_listen_port: 51946

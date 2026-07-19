@@ -1,6 +1,6 @@
 ---
 - name: Verify prepared hosts
-  hosts: all
+  hosts: entry_split:exit
   gather_facts: true
 
   tasks:

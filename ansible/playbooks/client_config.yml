@@ -63,7 +63,7 @@
 
     - name: Render local initial WireGuard client config
       ansible.builtin.template:
-        src: "../templates/client/initial-client.conf.j2"
+        src: initial-client.conf.j2
         dest: "{{ wireguard_initial_client_config_path }}"
         mode: "0600"
       no_log: true

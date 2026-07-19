@@ -21,5 +21,21 @@ vpn_gen_exit_full_port: "{{ lookup('env', 'VPN_GEN_EXIT_FULL_PORT') | default('5
 vpn_gen_entry_full_client_port: "{{ lookup('env', 'VPN_GEN_ENTRY_FULL_CLIENT_PORT') | default('51944', true) }}"
 vpn_gen_entry_split_client_port: "{{ lookup('env', 'VPN_GEN_WG_CLIENT_ENDPOINT_PORT') | default('53774', true) }}"
 
+# Security boundary. Set a comma-separated list of trusted public controller
+# CIDRs (normally one /32). World-open SSH requires an explicit opt-in.
+vpn_gen_ssh_port: "{{ lookup('env', 'VPN_GEN_SSH_PORT') | default('22', true) }}"
+vpn_gen_admin_ipv4_cidrs: >-
+  {{
+    lookup('env', 'VPN_GEN_ADMIN_IPV4_CIDRS')
+    | default('', true)
+    | split(',')
+    | map('trim')
+    | reject('equalto', '')
+    | list
+  }}
+vpn_gen_allow_world_ssh: "{{ lookup('env', 'VPN_GEN_ALLOW_WORLD_SSH') | default('false', true) | bool }}"
+vpn_gen_ssh_known_hosts: "{{ lookup('env', 'VPN_GEN_SSH_KNOWN_HOSTS') | default(vpn_gen_config_dir ~ '/ssh/known_hosts', true) }}"
+ansible_ssh_common_args: "-o StrictHostKeyChecking=yes -o UserKnownHostsFile={{ vpn_gen_ssh_known_hosts }}"
+
 entry_split_exit_wg_transit_endpoint: "{{ vpn_gen_exit_host }}:{{ vpn_gen_exit_transit_port }}"
 entry_full_exit_endpoint: "{{ vpn_gen_exit_host }}:{{ vpn_gen_exit_full_port }}"

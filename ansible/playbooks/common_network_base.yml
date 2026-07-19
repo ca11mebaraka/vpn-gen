@@ -1,7 +1,7 @@
 ---
 - name: Prepare common Linux network base
-  hosts: all
+  hosts: entry_split:exit
   gather_facts: true
 
   roles:
-    - role: ../roles/common_network_base
+    - role: common_network_base

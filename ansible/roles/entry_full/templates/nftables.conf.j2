@@ -1,15 +1,24 @@
-#!/usr/sbin/nft -f
-flush ruleset
+table inet entry_full {
+  set admin4 {
+    type ipv4_addr
+    flags interval
+    elements = { {% if entry_full_allow_world_ssh %}0.0.0.0/0{% else %}{{ entry_full_admin_ipv4_cidrs | join(', ') }}{% endif %} }
+  }
 
-table inet filter {
   chain input {
-    type filter hook input priority filter; policy accept;
+    type filter hook input priority filter; policy drop;
+    iifname "lo" accept
+    ct state invalid drop
+    ct state established,related accept
+    ip saddr @admin4 tcp dport {{ entry_full_ssh_port }} counter accept
     udp dport { {{ entry_full_wg_client_listen_port }}, {{ entry_full_wg_transit_listen_port }} } counter accept
+    ip protocol icmp icmp type { destination-unreachable, time-exceeded, parameter-problem, echo-request } limit rate 10/second accept
   }
 
   chain forward {
-    type filter hook forward priority filter; policy accept;
+    type filter hook forward priority filter; policy drop;
+    ct state invalid drop
+    ct state established,related accept
     iifname "{{ entry_full_wg_client_interface }}" oifname "{{ entry_full_wg_transit_interface }}" ip saddr {{ entry_full_client_cidr }} counter accept
-    iifname "{{ entry_full_wg_transit_interface }}" oifname "{{ entry_full_wg_client_interface }}" ip daddr {{ entry_full_client_cidr }} ct state established,related counter accept
   }
 }

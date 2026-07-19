@@ -9,3 +9,4 @@ common_network_base_packages:
   - python3
 
 common_network_base_ipv4_forwarding_sysctl: net.ipv4.ip_forward
+common_network_base_disable_ipv6: true

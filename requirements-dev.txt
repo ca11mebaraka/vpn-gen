@@ -1,0 +1,4 @@
+# Controller-only tooling. Keep production VPS hosts dependency-free beyond
+# packages installed by the Ansible roles.
+ansible-core>=2.17,<2.20
+ansible-lint>=25,<27

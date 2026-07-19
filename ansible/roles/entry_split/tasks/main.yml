@@ -3,6 +3,8 @@
   ansible.builtin.assert:
     that:
       - entry_split_exit_wg_transit_public_key | length > 0
+      - entry_split_admin_ipv4_cidrs | length > 0 or entry_split_allow_world_ssh | bool
+      - entry_split_allow_world_ssh | bool or '0.0.0.0/0' not in entry_split_admin_ipv4_cidrs
       - >
         (entry_split_wg_client_private_key | length > 0) or
         (entry_split_wg_client_private_key_path | length > 0)
@@ -10,7 +12,8 @@
         (entry_split_wg_transit_private_key | length > 0) or
         (entry_split_wg_transit_private_key_path | length > 0)
     fail_msg: >-
-      Define entry_split_exit_wg_transit_public_key and provide
+      Define entry_split_exit_wg_transit_public_key, trusted
+      VPN_GEN_ADMIN_IPV4_CIDRS (normally controller_ip/32), and provide
       entry_split_wg_client_private_key plus entry_split_wg_transit_private_key
       via Vault/extra-vars or *_private_key_path values outside git.
 

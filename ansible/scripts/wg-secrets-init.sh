@@ -319,7 +319,7 @@ write_public_vars() {
     printf 'wireguard_exit_wg_transit_address: "10.70.0.2/30"\n'
     printf 'wireguard_initial_client_address: "10.60.0.10/32"\n'
     printf 'wireguard_initial_client_dns: "10.60.0.1"\n'
-    printf 'wireguard_client_allowed_ips: "0.0.0.0/0"\n'
+    printf 'wireguard_client_allowed_ips: "0.0.0.0/0, ::/0"\n'
     printf 'wireguard_entry_split_client_endpoint_host: %s\n' "$(yaml_dquote "$client_endpoint_host")"
     printf 'wireguard_entry_split_client_endpoint_port: %s\n' "$(yaml_dquote "$client_endpoint_port")"
     printf 'wireguard_transit_endpoint_port: %s\n' "$(yaml_dquote "$transit_endpoint_port")"
@@ -332,6 +332,18 @@ write_public_vars() {
     printf 'wireguard_exit_wg_transit_public_key: %s\n' "$(yaml_dquote "$(read_public_key exit_wg_transit)")"
     printf 'wireguard_initial_client_private_key_path: %s\n' "$(yaml_dquote "$(private_path_for initial_client)")"
     printf 'wireguard_initial_client_public_key: %s\n' "$(yaml_dquote "$(read_public_key initial_client)")"
+    printf '%s\n' ''
+    printf '%s\n' '# Direct role inputs for the secure two-node deployment.'
+    printf 'entry_split_wg_client_private_key_path: %s\n' "$(yaml_dquote "$(private_path_for entry_split_wg_client)")"
+    printf 'entry_split_wg_transit_private_key_path: %s\n' "$(yaml_dquote "$(private_path_for entry_split_wg_transit)")"
+    printf 'exit_wg_transit_private_key_path: %s\n' "$(yaml_dquote "$(private_path_for exit_wg_transit)")"
+    printf 'entry_split_exit_wg_transit_public_key: %s\n' "$(yaml_dquote "$(read_public_key exit_wg_transit)")"
+    printf 'exit_entry_split_wg_transit_public_key: %s\n' "$(yaml_dquote "$(read_public_key entry_split_wg_transit)")"
+    printf '%s\n' 'entry_split_wg_client_peers:'
+    printf '%s\n' '  - name: initial-client'
+    printf '    public_key: %s\n' "$(yaml_dquote "$(read_public_key initial_client)")"
+    printf '%s\n' '    allowed_ips:'
+    printf '%s\n' '      - "10.60.0.10/32"'
   } > "$tmp_file"
 
   chmod 600 "$tmp_file"

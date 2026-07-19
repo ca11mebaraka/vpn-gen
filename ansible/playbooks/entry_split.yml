@@ -2,5 +2,7 @@
 - name: Configure entry WireGuard edge
   hosts: entry_split
   gather_facts: true
+  vars_files:
+    - "{{ lookup('env', 'VPN_GEN_WG_PUBLIC_VARS_FILE') }}"
   roles:
-    - role: ../roles/entry_split
+    - role: entry_split

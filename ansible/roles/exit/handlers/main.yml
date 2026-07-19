@@ -20,8 +20,68 @@
   changed_when: false
   listen: Reload nftables
 
-- name: Reload nftables service
+- name: Create nftables rollback directory
+  ansible.builtin.file:
+    path: /var/lib/vpn-gen
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  listen: Reload nftables
+
+- name: Capture nftables rollback ruleset
+  ansible.builtin.command: nft list ruleset
+  register: exit_nft_ruleset_before_reload
+  changed_when: false
+  listen: Reload nftables
+
+- name: Store nftables rollback ruleset
+  ansible.builtin.copy:
+    content: "{{ exit_nft_ruleset_before_reload.stdout }}\n"
+    dest: /var/lib/vpn-gen/nftables.rollback.nft
+    owner: root
+    group: root
+    mode: "0600"
+  listen: Reload nftables
+
+- name: Clear an earlier nftables rollback timer
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+  loop:
+    - vpn-gen-nft-rollback.timer
+    - vpn-gen-nft-rollback.service
+  failed_when: false
+  listen: Reload nftables
+
+- name: Arm automatic nftables rollback
+  ansible.builtin.command:
+    argv: [systemd-run, --unit=vpn-gen-nft-rollback, --on-active=2m, /usr/sbin/nft, -f, /var/lib/vpn-gen/nftables.rollback.nft]
+  changed_when: true
+  listen: Reload nftables
+
+- name: Reload nftables service with rollback armed
   ansible.builtin.service:
     name: nftables
     state: reloaded
+  listen: Reload nftables
+
+- name: Reset SSH connection after firewall reload
+  ansible.builtin.meta: reset_connection
+  listen: Reload nftables
+
+- name: Confirm SSH survived firewall reload
+  ansible.builtin.wait_for_connection:
+    delay: 2
+    timeout: 210
+  listen: Reload nftables
+
+- name: Disarm nftables rollback after successful reconnect
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+  loop:
+    - vpn-gen-nft-rollback.timer
+    - vpn-gen-nft-rollback.service
+  failed_when: false
   listen: Reload nftables

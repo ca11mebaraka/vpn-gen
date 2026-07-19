@@ -1,0 +1,114 @@
+---
+- name: Validate hardened VPN nodes
+  hosts: entry_split:exit
+  gather_facts: false
+  become: true
+  vars:
+    security_nft_table: "{{ 'entry_split' if inventory_hostname in groups.get('entry_split', []) else 'vpn_exit' }}"
+    security_wg_interfaces: "{{ ['wg-client', 'wg-transit'] if inventory_hostname in groups.get('entry_split', []) else ['wg-transit'] }}"
+
+  tasks:
+    - name: Confirm SSH connectivity
+      ansible.builtin.wait_for_connection:
+        timeout: 20
+
+    - name: Read effective SSH daemon policy
+      ansible.builtin.command: sshd -T
+      changed_when: false
+      register: security_sshd_policy
+
+    - name: Assert hardened SSH policy
+      ansible.builtin.assert:
+        that:
+          - "'passwordauthentication no' in security_sshd_policy.stdout"
+          - "'kbdinteractiveauthentication no' in security_sshd_policy.stdout"
+          - "'permitrootlogin no' in security_sshd_policy.stdout"
+          - "'pubkeyauthentication yes' in security_sshd_policy.stdout"
+          - "'allowtcpforwarding no' in security_sshd_policy.stdout"
+          - "'x11forwarding no' in security_sshd_policy.stdout"
+          - "'permittunnel no' in security_sshd_policy.stdout"
+
+    - name: Read IPv6 kernel policy
+      ansible.builtin.command: "sysctl -n {{ item }}"
+      loop:
+        - net.ipv6.conf.all.disable_ipv6
+        - net.ipv6.conf.default.disable_ipv6
+      changed_when: false
+      register: security_ipv6_policy
+
+    - name: Assert IPv6 is disabled on VPN nodes
+      ansible.builtin.assert:
+        that:
+          - security_ipv6_policy.results | map(attribute='stdout') | unique | list == ['1']
+
+    - name: Read hardened nftables table
+      ansible.builtin.command: "nft list table inet {{ security_nft_table }}"
+      changed_when: false
+      register: security_nft_table_output
+
+    - name: Assert input and forward chains are default-deny
+      ansible.builtin.assert:
+        that:
+          - security_nft_table_output.stdout | regex_findall('hook input[^}]+policy drop') | length == 1
+          - security_nft_table_output.stdout | regex_findall('hook forward[^}]+policy drop') | length == 1
+          - "'ct state established,related accept' in security_nft_table_output.stdout"
+
+    - name: Assert split entry has explicit fail-closed routes
+      ansible.builtin.assert:
+        that:
+          - "'ip daddr @ru4' in security_nft_table_output.stdout"
+          - "'ip daddr @bypass4' in security_nft_table_output.stdout"
+          - "'oifname \"wg-transit\"' in security_nft_table_output.stdout"
+      when: inventory_hostname in groups.get('entry_split', [])
+
+    - name: Check WireGuard configuration permissions
+      ansible.builtin.stat:
+        path: "/etc/wireguard/{{ item }}.conf"
+      loop: "{{ security_wg_interfaces }}"
+      register: security_wg_config_stats
+
+    - name: Assert WireGuard configs are root-only
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.pw_name == 'root'
+          - item.stat.gr_name == 'root'
+          - item.stat.mode == '0600'
+      loop: "{{ security_wg_config_stats.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Gather service states for rollback verification
+      ansible.builtin.service_facts:
+
+    - name: Assert firewall rollback timer is inactive
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services.get('vpn-gen-nft-rollback.timer', {}).get('state', 'not-found') != 'running'
+
+- name: Validate entry DNS listener and transit handshake
+  hosts: entry_split
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Read listening sockets
+      ansible.builtin.command: ss -H -lntu
+      changed_when: false
+      register: security_entry_sockets
+
+    - name: Assert DNS is bound to the VPN address
+      ansible.builtin.assert:
+        that:
+          - "'10.60.0.1:53' in security_entry_sockets.stdout"
+
+    - name: Read transit handshake timestamps
+      ansible.builtin.command: wg show wg-transit latest-handshakes
+      changed_when: false
+      register: security_transit_handshakes
+
+    - name: Assert transit has completed a handshake
+      ansible.builtin.assert:
+        that:
+          - security_transit_handshakes.stdout_lines | length > 0
+          - security_transit_handshakes.stdout is regex('(?m)^\\S+\\s+[1-9][0-9]*$')

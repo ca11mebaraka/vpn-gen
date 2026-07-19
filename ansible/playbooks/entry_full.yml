@@ -3,4 +3,4 @@
   hosts: entry_full
   gather_facts: true
   roles:
-    - role: ../roles/entry_full
+    - role: entry_full
